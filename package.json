@@ -1,0 +1,25 @@
+{
+  "name": "f5-cloud-libs-azure",
+  "version": "1.0.0",
+  "description": "Azure implementation of f5-cloud-libs autoscale code",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/F5Networks/f5-cloud-libs-azure.git"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "ms-rest-azure": "^1.15.2",
+    "azure-arm-network": "^0.15.0",
+    "azure-arm-compute": "^0.19.0",
+    "q": "^1.4.1"
+  },
+  "devDependencies": {
+    "f5-cloud-libs": "git+ssh://git@github.com/F5Networks/f5-cloud-libs.git#develop",
+    "jshint": "latest",
+    "nodeunit": "^0.10"
+  },
+  "scripts": {
+    "test": "node_modules/nodeunit/bin/nodeunit --reporter eclipse test test/lib"
+  }
+}
