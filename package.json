@@ -16,10 +16,8 @@
   },
   "devDependencies": {
     "f5-cloud-libs": "git+ssh://git@github.com/F5Networks/f5-cloud-libs.git#develop",
-    "jshint": "latest",
-    "nodeunit": "^0.10"
+    "jshint": "latest"
   },
   "scripts": {
-    "test": "node_modules/nodeunit/bin/nodeunit --reporter eclipse test test/lib"
   }
 }
