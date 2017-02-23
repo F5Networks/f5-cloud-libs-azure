@@ -19,5 +19,8 @@
     "jshint": "latest",
     "nodeunit": "^0.11"
   },
-  "scripts": {}
+  "scripts": {
+    "test": "node_modules/nodeunit/bin/nodeunit --reporter eclipse test test/lib",
+    "package": "./package.sh"
+  }
 }
