@@ -21,7 +21,7 @@ selfip=$(tmsh list net self self_1nic address | grep -o '[0-9]\{1,3\}\.[0-9]\{1,
 # lastoctet=`echo $selfip | cut -d . -f 4`
 # instance=`expr $lastoctet - 4`
 
-f5-rest-node /var/lib/waagent/custom-script/download/0/runScripts.js --log-level debug --onboard "--output /var/log/onboard.log --log-level debug --host $selfip -u admin --password-url file://$passwd_file --hostname $vmss_name$instance.azuresecurity.com --set-password admin:$passwd --db provision.1nicautoconfig:disable --db tmm.maxremoteloglength:2048 --module ltm:nominal --module asm:none --module afm:none --signal ONBOARD_DONE" --autoscale "--wait-for ONBOARD_DONE --output /var/log/autoscale.log --log-level debug --host $selfip -u admin --password-url $passwd_file --cloud azure --provider-options credentialsUrl:$azure_secret_file --cluster-action join --device-group Sync"
+f5-rest-node /config/cloud/node_modules/f5-cloud-libs/scripts/azure/runScripts.js --log-level debug --onboard "--output /var/log/onboard.log --log-level debug --host $selfip -u admin --password-url file://$passwd_file --hostname $vmss_name$instance.azuresecurity.com --set-password admin:$passwd --db provision.1nicautoconfig:disable --db tmm.maxremoteloglength:2048 --module ltm:nominal --module asm:none --module afm:none --signal ONBOARD_DONE" --autoscale "--wait-for ONBOARD_DONE --output /var/log/autoscale.log --log-level debug --host $selfip -u admin --password-url $passwd_file --cloud azure --provider-options credentialsUrl:$azure_secret_file --cluster-action join --device-group Sync"
 
 # if [[ $instance == 0 ]]; then
 #      if [[ -n $mode ]]; then
