@@ -6,7 +6,6 @@ do case "$option" in
 #        a) addr=$OPTARG;;
 #        o) port=$OPTARG;;
         r) resource_group=$OPTARG;;
-        n) subscription_id=$OPTARG;;
         v) vmss_name=$OPTARG;;
         u) user=$OPTARG;;
         p) passwd_file=$OPTARG;;
@@ -18,7 +17,7 @@ selfip=$(tmsh list net self self_1nic address | grep -o '[0-9]\{1,3\}\.[0-9]\{1,
 lastoctet=`echo $selfip | cut -d . -f 4`
 instance=`expr $lastoctet - 4`
 
-f5-rest-node /config/cloud/node_modules/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/node_modules/f5-cloud-libs --log-level debug --onboard "--output /var/log/onboard.log --log-level debug --host $selfip --port 8443 -u $user --password-url file://$passwd_file --hostname $vmss_name$instance.azuresecurity.com --db provision.1nicautoconfig:disable --db tmm.maxremoteloglength:2048 --module ltm:nominal --module asm:none --module afm:none --signal ONBOARD_DONE" --autoscale "--wait-for ONBOARD_DONE --output /var/log/autoscale.log --log-level debug --host $selfip --port 8443 -u $user --password-url file://$passwd_file --cloud azure --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group,subscriptionId:$subscription_id --cluster-action join --device-group Sync"
+f5-rest-node /config/cloud/node_modules/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/node_modules/f5-cloud-libs --log-level debug --onboard "--output /var/log/onboard.log --log-level debug --host $selfip --port 8443 -u $user --password-url file://$passwd_file --hostname $vmss_name$instance.azuresecurity.com --db provision.1nicautoconfig:disable --db tmm.maxremoteloglength:2048 --module ltm:nominal --module asm:none --module afm:none --signal ONBOARD_DONE" --autoscale "--wait-for ONBOARD_DONE --output /var/log/autoscale.log --log-level debug --host $selfip --port 8443 -u $user --password-url file://$passwd_file --cloud azure --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group --cluster-action join --device-group Sync"
 
 # if [[ $instance == 0 ]]; then
 #      if [[ -n $mode ]]; then
