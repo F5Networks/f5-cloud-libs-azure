@@ -20,7 +20,7 @@
     "nodeunit": "^0.11"
   },
   "scripts": {
-    "test": "echo NO TESTS",
-    "package": "bash ./package.sh"
+    "test": "node_modules/nodeunit/bin/nodeunit --reporter eclipse test test/lib",
+    "package": "./package.sh"
   }
 }
