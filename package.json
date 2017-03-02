@@ -21,6 +21,6 @@
   },
   "scripts": {
     "test": "echo NO TESTS",
-    "package": "./package.sh"
+    "package": "bash ./package.sh"
   }
 }
