@@ -23,9 +23,9 @@ if [ -f /config/cloud/master ]; then
 fi
 
 if [[ $? == 0 ]]; then
-    echo "SUCCESS"
+    echo "AUTOSCALE INIT SUCCESS"
 else
-    echo "FAIL"
+    echo "AUOTSCALE INIT FAIL"
     exit 1
 fi
 
