@@ -15,6 +15,7 @@
  */
 'use strict';
 
+var fs = require('fs');
 var q = require('q');
 var azureMock;
 var azureNetworkMock;
@@ -29,6 +30,10 @@ var tenantId = 'myTenantId';
 var subscriptionId = 'mySubscriptionId';
 
 var ipAddress = '1.2.3.4';
+
+var createdMasterFile;
+var fsOpenSync;
+var fsCloseSync;
 
 // Our tests cause too many event listeners. Turn off the check.
 process.setMaxListeners(0);
@@ -252,6 +257,185 @@ module.exports = {
                     test.strictEqual(err.message, errorMessage);
                 })
                 .finally(function() {
+                    test.done();
+                });
+        }
+    },
+
+    testGetInstances: {
+        setUp: function(callback) {
+            bigIpMock.prototype.init = function(host) {
+                this.host = host;
+                return q();
+            };
+
+            bigIpMock.prototype.list = function() {
+                return q({
+                    hostname: this.host + '_myHostname'
+                });
+            };
+
+            azureNetworkMock.networkInterfaces = {
+                listVirtualMachineScaleSetNetworkInterfaces: function(resourceGroup, scaleSet, cb) {
+                    cb(null, {
+                        '123': {
+                            ipConfigurations: [
+                                {
+                                    privateIPAddress: '5.6.7.8'
+                                }
+                            ]
+                        },
+                        '456': {
+                            ipConfigurations: [
+                                {
+                                    privateIPAddress: '7.8.9.0'
+                                }
+                            ]
+                        }
+                    });
+                }
+            };
+
+            provider.networkClient = azureNetworkMock;
+
+            callback();
+        },
+
+        testBasic: function(test) {
+            provider.getInstances()
+                .then(function(instances) {
+                    test.deepEqual(instances, {
+                        '123': {
+                            mgmtIp: '5.6.7.8',
+                            privateIp: '5.6.7.8',
+                            hostname: '5.6.7.8_myHostname'
+                        },
+                        '456': {
+                            mgmtIp: '7.8.9.0',
+                            privateIp: '7.8.9.0',
+                            hostname: '7.8.9.0_myHostname'
+                        }
+                    });
+                })
+                .catch(function(err) {
+                    test.ok(false, err);
+                })
+                .finally(function() {
+                    test.done();
+                });
+        },
+
+        testError: function(test) {
+            var errorMessage = 'some error occurred';
+            bigIpMock.prototype.init = function() {
+                return q.reject(new Error(errorMessage));
+            };
+
+            test.expect(1);
+
+            provider.getInstances()
+                .then(function() {
+                    test.ok(false, 'should have thrown');
+                })
+                .catch(function(err) {
+                    test.strictEqual(err.message, errorMessage);
+                })
+                .finally(function() {
+                    test.done();
+                });
+        }
+    },
+
+    testElectMaster: {
+        testBasic: function(test) {
+            var instances = {
+                '123': {
+                    mgmtIp: '5.6.7.8',
+                    privateIp: '5.6.7.8',
+                    hostname: '5.6.7.8_myHostname'
+                },
+                '456': {
+                    mgmtIp: '7.8.9.0',
+                    privateIp: '7.8.9.0',
+                    hostname: '7.8.9.0_myHostname'
+                }
+            };
+
+            provider.electMaster(instances)
+                .then(function(electedId) {
+                    test.strictEqual(electedId, '123');
+                    test.done();
+                });
+        },
+
+        testNoInstances: function(test) {
+            var instances = [];
+
+            test.expect(1);
+            provider.electMaster(instances)
+                .then(function() {
+                    test.ok(false, 'should have thrown no instances');
+                })
+                .catch(function(err) {
+                    test.strictEqual(err.message, 'No instances');
+                })
+                .finally(function() {
+                    test.done();
+                });
+        }
+    },
+
+    testGetMasterCredentials: function(test) {
+        var user = 'roger';
+        var password = 'dodger';
+
+        bigIpMock.user = user;
+        bigIpMock.password = password;
+        provider.bigIp = bigIpMock;
+        provider.getMasterCredentials()
+            .then(function(credentials) {
+                test.deepEqual(credentials, {
+                    username: user,
+                    password: password
+                });
+                test.done();
+            });
+    },
+
+    testMasterElected: {
+        setUp: function(callback) {
+            createdMasterFile = false;
+
+            provider.instanceId = '123';
+            fsOpenSync = fs.openSync;
+            fsCloseSync = fs.closeSync;
+
+            fs.openSync = function() {
+                createdMasterFile = true;
+            };
+            fs.closeSync = function() {};
+
+            callback();
+        },
+
+        tearDown: function(callback) {
+            fs.openSync = fsOpenSync;
+            fs.closeSync = fsCloseSync;
+            callback();
+        },
+
+        testIsMaster: function(test) {
+            provider.masterElected('123')
+                .then(function() {
+                    test.strictEqual(createdMasterFile, true);
+                    test.done();
+                });
+        },
+
+        testNotMaster: function(test) {
+            provider.masterElected('456')
+                .then(function() {
+                    test.strictEqual(createdMasterFile, false);
                     test.done();
                 });
         }
