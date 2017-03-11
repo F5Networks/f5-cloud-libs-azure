@@ -1,8 +1,8 @@
 #!/bin/bash
 
-ARGS=`getopt -o r:v:u:p:s:m: --long resourceGroup:,vmssName:,userName:,password:,azureSecretFile:,managementPort: -n $0 -- "$@"`
+ARGS=`getopt -o r:v:u:p:s:m:a: --long resourceGroup:,vmssName:,userName:,password:,azureSecretFile:,managementPort:,autoPortCheckFlag: -n $0 -- "$@"`
 eval set -- "$ARGS"
-# Parse the command line arguments, primarily checking full params as short params are just placeholders
+# Parse the command line arguments
 while true; do
     case "$1" in
         -r|--resourceGroup)
@@ -23,11 +23,18 @@ while true; do
         -m|--managementPort)
             mgmt_port=$2
             shift 2;;
+        -a|--autoPortCheckFlag)
+            auto_port_check=$2
+            shift 2;;
         --)
             shift
             break;;
     esac
 done
+# Optionally allow script to automatically determine the mgmt port - True or False should be passed
+if [ $auto_port_check ]; then
+    mgmt_port=`tmsh list sys httpd ssl-port | grep ssl-port | sed 's/ssl-port //;s/ //g'`
+fi
 
 dfl_mgmt_port=`tmsh list sys httpd ssl-port | grep ssl-port | sed 's/ssl-port //;s/ //g'`
 selfip=$(tmsh list net self self_1nic address | grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}')
