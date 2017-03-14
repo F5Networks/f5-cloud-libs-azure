@@ -19,6 +19,7 @@ var fs = require('fs');
 var q = require('q');
 var azureMock;
 var azureNetworkMock;
+var azureStorageMock;
 var bigIpMock;
 var utilMock;
 var AzureAutoscaleProvider;
@@ -43,11 +44,20 @@ module.exports = {
         utilMock = require('f5-cloud-libs').util;
         azureMock = require('ms-rest-azure');
         azureNetworkMock = require('azure-arm-network');
+        azureStorageMock = require('azure-storage');
         bigIpMock = require('f5-cloud-libs').bigIp;
 
         AzureAutoscaleProvider = require('../../lib/azureAutoscaleProvider');
 
         provider = new AzureAutoscaleProvider({clOptions: {user: 'foo', password: 'bar'}});
+
+        azureStorageMock.createBlobServiceWithSas = function() {
+            return {
+                createContainerIfNotExists: function(container, options, cb) {
+                    cb();
+                }
+            };
+        };
 
         callback();
     },
@@ -80,7 +90,9 @@ module.exports = {
         testAzureLogin: function(test) {
             var providerOptions = {
                 scaleSet: 'myScaleSet',
-                resourceGroup: 'myResourceGroup'
+                resourceGroup: 'myResourceGroup',
+                storageHost: 'myStorageHost',
+                storageSas: 'myStorageSas'
             };
 
             var receivedClientId;

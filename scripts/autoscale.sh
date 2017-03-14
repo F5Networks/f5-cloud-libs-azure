@@ -6,6 +6,8 @@ do case "$option" in
         u) user=$OPTARG;;
         p) passwd_file=$OPTARG;;
         s) azure_secret_file=$OPTARG;;
+        g) storage_account=$OPTARG;;
+        k) storage_key=$OPTARG;;
     esac
 done
 
@@ -17,7 +19,7 @@ f5-rest-node /config/cloud/node_modules/f5-cloud-libs/scripts/azure/runScripts.j
 
 if [ -f /config/cloud/master ]; then
     echo 'SELF-SELECTED as Master ... Initiating Autoscale Cluster'
-    tmsh create sys icall script ClusterUpdate definition { exec f5-rest-node /config/cloud/node_modules/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/node_modules/f5-cloud-libs --log-level debug --autoscale "--cloud azure --log-level debug --output /var/log/azure-autoscale.log --host $selfip --port $port --user $user --password-url file://$passwd_file --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group --cluster-action update --device-group Sync" }
+    tmsh create sys icall script ClusterUpdate definition { exec f5-rest-node /config/cloud/node_modules/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/node_modules/f5-cloud-libs --log-level debug --autoscale "--cloud azure --log-level debug --output /var/log/azure-autoscale.log --host $selfip --port $port --user $user --password-url file://$passwd_file --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group,storageHost:$storage_account,storageSas:$storage_key --cluster-action update --device-group Sync" }
     tmsh create sys icall handler periodic /Common/ClusterUpdateHandler { first-occurrence now interval 300 script /Common/ClusterUpdate }
     tmsh save /sys config
 fi
