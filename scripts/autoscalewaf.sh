@@ -44,7 +44,7 @@ if [ -f /config/cloud/master ]; then
     tmsh create sys icall handler periodic /Common/ClusterUpdateHandler { first-occurrence now interval 300 script /Common/ClusterUpdate }
     tmsh save /sys config
     # Deploy the WAF Application if master and ucs loaded equals false
-    /usr/bin/f5-rest-node /config/cloud/node_modules/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/node_modules/f5-cloud-libs --script " --output /var/log/deployScript.log --log-level debug --file /var/lib/waagent/custom-script/download/0/depoy_waf.sh --cl-args '$waf_script_args' --signal DEPLOY_SCRIPT_DONE "
+    /usr/bin/f5-rest-node /config/cloud/node_modules/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/node_modules/f5-cloud-libs --script " --output /var/log/deployScript.log --log-level debug --file /var/lib/waagent/custom-script/download/0/deploy_waf.sh --cl-args '$waf_script_args' --signal DEPLOY_SCRIPT_DONE "
 fi
 
 if [[ $? == 0 ]]; then
