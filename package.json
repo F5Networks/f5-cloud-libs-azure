@@ -9,7 +9,7 @@
   },
   "license": "Apache-2.0",
   "dependencies": {
-    "ms-rest-azure": "^1.15.4",
+    "ms-rest-azure": "^1.15.0",
     "azure-arm-compute": "^0.20.0",
     "azure-arm-network": "^0.18.0",
     "q": "^1.4.1"
