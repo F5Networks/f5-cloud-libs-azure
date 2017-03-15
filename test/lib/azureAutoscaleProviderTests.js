@@ -15,7 +15,6 @@
  */
 'use strict';
 
-var fs = require('fs');
 var q = require('q');
 var azureMock;
 var azureNetworkMock;
@@ -29,12 +28,10 @@ var clientId = 'myClientId';
 var secret = 'mySecret';
 var tenantId = 'myTenantId';
 var subscriptionId = 'mySubscriptionId';
+var storageAccount = 'myStorageAccount';
+var storageKey = 'myStorageKey';
 
 var ipAddress = '1.2.3.4';
-
-var createdMasterFile;
-var fsOpenSync;
-var fsCloseSync;
 
 // Our tests cause too many event listeners. Turn off the check.
 process.setMaxListeners(0);
@@ -51,7 +48,7 @@ module.exports = {
 
         provider = new AzureAutoscaleProvider({clOptions: {user: 'foo', password: 'bar'}});
 
-        azureStorageMock.createBlobServiceWithSas = function() {
+        azureStorageMock.createBlobService = function() {
             return {
                 createContainerIfNotExists: function(container, options, cb) {
                     cb();
@@ -76,7 +73,9 @@ module.exports = {
                     clientId: clientId,
                     secret: secret,
                     tenantId: tenantId,
-                    subscriptionId: subscriptionId
+                    subscriptionId: subscriptionId,
+                    storageAccount: storageAccount,
+                    storageKey: storageKey
                 }));
             };
 
@@ -90,9 +89,7 @@ module.exports = {
         testAzureLogin: function(test) {
             var providerOptions = {
                 scaleSet: 'myScaleSet',
-                resourceGroup: 'myResourceGroup',
-                storageHost: 'myStorageHost',
-                storageSas: 'myStorageSas'
+                resourceGroup: 'myResourceGroup'
             };
 
             var receivedClientId;
