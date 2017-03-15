@@ -50,7 +50,7 @@ module.exports = {
 
         azureStorageMock.createBlobService = function() {
             return {
-                createContainerIfNotExists: function(container, options, cb) {
+                createContainerIfNotExists: function(container, cb) {
                     cb();
                 }
             };
