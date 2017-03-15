@@ -412,44 +412,5 @@ module.exports = {
                 });
                 test.done();
             });
-    },
-
-    testMasterElected: {
-        setUp: function(callback) {
-            createdMasterFile = false;
-
-            provider.instanceId = '123';
-            fsOpenSync = fs.openSync;
-            fsCloseSync = fs.closeSync;
-
-            fs.openSync = function() {
-                createdMasterFile = true;
-            };
-            fs.closeSync = function() {};
-
-            callback();
-        },
-
-        tearDown: function(callback) {
-            fs.openSync = fsOpenSync;
-            fs.closeSync = fsCloseSync;
-            callback();
-        },
-
-        testIsMaster: function(test) {
-            provider.masterElected('123')
-                .then(function() {
-                    test.strictEqual(createdMasterFile, true);
-                    test.done();
-                });
-        },
-
-        testNotMaster: function(test) {
-            provider.masterElected('456')
-                .then(function() {
-                    test.strictEqual(createdMasterFile, false);
-                    test.done();
-                });
-        }
     }
 };
