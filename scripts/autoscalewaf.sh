@@ -40,12 +40,29 @@ f5-rest-node /config/cloud/node_modules/f5-cloud-libs/scripts/azure/runScripts.j
 
 if [ -f /config/cloud/master ]; then
     echo 'SELF-SELECTED as Master ... Initiating Autoscale Cluster'
-    tmsh create sys icall script ClusterUpdate definition { exec f5-rest-node /config/cloud/node_modules/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/node_modules/f5-cloud-libs --log-level debug --autoscale "--cloud azure --log-level debug --output /var/log/azure-autoscale.log --host $selfip --port $mgmt_port --user $user --password-url file://$passwd_file --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group --cluster-action update --device-group Sync" }
-    tmsh create sys icall handler periodic /Common/ClusterUpdateHandler { first-occurrence now interval 300 script /Common/ClusterUpdate }
-    tmsh save /sys config
-    # Deploy the WAF Application if master and ucs loaded equals false
-    /usr/bin/f5-rest-node /config/cloud/node_modules/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/node_modules/f5-cloud-libs --script " --output /var/log/deployScript.log --log-level debug --file /var/lib/waagent/custom-script/download/0/deploy_waf.sh --cl-args '$waf_script_args' --signal DEPLOY_SCRIPT_DONE "
+    # UCS Loaded?
+    ucs_loaded=`cat /config/cloud/master | jq .ucsLoaded`
+    echo "UCS Loaded: $ucs_loaded"
 
+    # Create iCall, first check if it already exists
+    icall_handler_name="ClusterUpdateHandler"
+    tmsh list sys icall handler | grep $icall_handler_name
+    if [[ $? != 0 ]]; then
+        tmsh create sys icall script ClusterUpdate definition { exec f5-rest-node /config/cloud/node_modules/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/node_modules/f5-cloud-libs --log-level debug --autoscale "--cloud azure --log-level debug --output /var/log/azure-autoscale.log --host $selfip --port $mgmt_port --user $user --password-url file://$passwd_file --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group --cluster-action update --device-group Sync" }
+        tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence now interval 300 script /Common/ClusterUpdate }
+        tmsh save /sys config
+    else
+        echo "Appears the $icall_handler_name icall already exists!"
+    fi
+
+    # Deploy the WAF Application if master and ucs loaded equals false
+	if $ucs_loaded; then
+        echo "NOTE: We are not deploying any WAF applications as a UCS was loaded, and it takes precedence."
+    else
+        /usr/bin/f5-rest-node /config/cloud/node_modules/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/node_modules/f5-cloud-libs --script " --output /var/log/deployScript.log --log-level debug --file /var/lib/waagent/custom-script/download/0/deploy_waf.sh --cl-args '$waf_script_args' --signal DEPLOY_SCRIPT_DONE "
+    fi
+
+    # Unblock the cluster sync
     f5-rest-node /config/cloud/node_modules/f5-cloud-libs/scripts/autoscale.js --output /var/log/autoscale.log --log-level debug --host $selfip --port $mgmt_port -u $user --password-url file://$passwd_file --cloud azure --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group --cluster-action unblock-sync
 fi
 
