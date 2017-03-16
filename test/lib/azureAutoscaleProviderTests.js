@@ -32,6 +32,7 @@ var storageAccount = 'myStorageAccount';
 var storageKey = 'myStorageKey';
 
 var ipAddress = '1.2.3.4';
+var ucsEntries = [];
 
 // Our tests cause too many event listeners. Turn off the check.
 process.setMaxListeners(0);
@@ -170,6 +171,7 @@ module.exports = {
         },
 
         testBasic: function(test) {
+            test.expect(1);
             provider.getInstanceId()
                 .then(function(instanceId) {
                     test.strictEqual(instanceId, '456');
@@ -184,6 +186,7 @@ module.exports = {
 
         testCached: function(test) {
             provider.instanceId = '789';
+            test.expect(1);
             provider.getInstanceId()
                 .then(function(instanceId) {
                     test.strictEqual(instanceId, '789');
@@ -218,6 +221,7 @@ module.exports = {
                 }
             };
 
+            test.expect(1);
             provider.getInstanceId()
                 .then(function() {
                     test.ok(false, 'should have thrown ip not found');
@@ -238,6 +242,7 @@ module.exports = {
                 return q.reject(new Error(errorMessage));
             };
 
+            test.expect(1);
             provider.getInstanceId()
                 .then(function() {
                     test.ok(false, 'should have thrown network error');
@@ -258,6 +263,7 @@ module.exports = {
                 }
             };
 
+            test.expect(1);
             provider.getInstanceId()
                 .then(function() {
                     test.ok(false, 'should have thrown network error');
@@ -311,6 +317,8 @@ module.exports = {
         },
 
         testBasic: function(test) {
+
+            test.expect(1);
             provider.getInstances()
                 .then(function(instances) {
                     test.deepEqual(instances, {
@@ -341,7 +349,6 @@ module.exports = {
             };
 
             test.expect(1);
-
             provider.getInstances()
                 .then(function() {
                     test.ok(false, 'should have thrown');
@@ -409,5 +416,87 @@ module.exports = {
                 });
                 test.done();
             });
+    },
+
+    testGetStoredUcs: {
+        setUp: function(callback) {
+            provider.storageClient = {
+                listBlobsSegmented: function(container, foo, bar, cb) {
+                    cb(null, {
+                        entries: ucsEntries
+                    });
+                },
+
+                createReadStream: function(container, name) {
+                    return {
+                        name: name
+                    };
+                }
+            };
+
+            callback();
+        },
+
+        testBasic: function(test) {
+            ucsEntries = [
+                {
+                    name: 'my.ucs',
+                    lastModified: 'Thu, 16 Mar 2017 18:08:54 GMT'
+                }
+            ];
+
+            provider.getStoredUcs()
+                .then(function(ucsData) {
+                    test.strictEqual(ucsData.name, 'my.ucs');
+                    test.done();
+                });
+        },
+
+        testGetsLatest: function(test) {
+            ucsEntries = [
+                {
+                    name: 'old.ucs',
+                    lastModified: 'Thu, 16 Mar 2017 18:08:54 GMT'
+                },
+                {
+                    name: 'new.ucs',
+                    lastModified: 'Thu, 17 Mar 2017 18:08:54 GMT'
+                }
+            ];
+
+            provider.getStoredUcs()
+                .then(function(ucsData) {
+                    test.strictEqual(ucsData.name, 'new.ucs');
+                    test.done();
+                });
+        },
+
+        testNoUcsFiles: function(test) {
+            ucsEntries = [];
+            provider.getStoredUcs()
+                .then(function(ucsData) {
+                    test.strictEqual(ucsData, undefined);
+                    test.done();
+                });
+        },
+
+        testListBlobsSegmentedError: function(test) {
+            var errorMessage = 'foobar';
+            provider.storageClient.listBlobsSegmented = function(container, foo, bar, cb) {
+                cb(new Error(errorMessage));
+            };
+
+            test.expect(1);
+            provider.getStoredUcs()
+                .then(function() {
+                    test.ok(false, 'listBlobsSegmented should have thrown');
+                })
+                .catch(function(err) {
+                    test.strictEqual(err.message, errorMessage);
+                })
+                .finally(function() {
+                    test.done();
+                });
+        }
     }
 };
