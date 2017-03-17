@@ -1,0 +1,29 @@
+image: node:4
+
+stages:
+    - test
+    - package
+
+test:
+    tags:
+        - docker-executor
+    stage: test
+    script:
+        - npm install
+        - npm test
+
+package:
+    tags:
+        - docker-executor
+    stage: package
+    only:
+        - /^release-.*/
+        - /^hf-.*/
+        - triggers
+    script:
+        - npm run package -- --no-deps
+    artifacts:
+        name: f5-cloud-libs-aws-$CI_BUILD_REF
+        paths:
+            - dist/
+            - doc/

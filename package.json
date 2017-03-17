@@ -9,15 +9,18 @@
   },
   "license": "Apache-2.0",
   "dependencies": {
-    "ms-rest-azure": "^1.15.2",
-    "azure-arm-network": "^0.15.0",
-    "azure-arm-compute": "^0.19.0",
+    "azure-arm-network": "^0.18.0",
+    "azure-storage": "^2.1.0",
+    "ms-rest-azure": "^1.15.0",
     "q": "^1.4.1"
   },
   "devDependencies": {
     "f5-cloud-libs": "git+ssh://git@github.com/F5Networks/f5-cloud-libs.git#develop",
-    "jshint": "latest"
+    "jshint": "latest",
+    "nodeunit": "^0.11"
   },
   "scripts": {
+    "test": "node node_modules/nodeunit/bin/nodeunit --reporter eclipse test test/lib",
+    "package": "bash ./package.sh"
   }
 }
