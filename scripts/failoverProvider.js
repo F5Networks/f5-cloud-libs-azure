@@ -4,6 +4,7 @@ var LogLevel = 'info';
 var Logger = require('f5-cloud-libs').logger;
 var logger = Logger.getLogger({logLevel: LogLevel, fileName: '/var/tmp/azureFailover.log'});
 
+var util = require('f5-cloud-libs').util;
 var fs = require('fs');
 
 if (fs.existsSync('/config/cloud/azCredentials')) {
@@ -71,6 +72,12 @@ bigip.init(
      });
 });
 
+/**
+ * Lists all route tables in the subscription
+ *
+ * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+ *                    
+ */
 function listRouteTables() {
      return new Promise(
      function (resolve, reject) {
@@ -86,6 +93,17 @@ function listRouteTables() {
      });
 }
 
+/**
+ * Updates specified Azure user defined routes
+ *
+ * @param {String} routeTableGroup - Name of the route table resource group
+ * @param {String} routeTableName - Name of the route table
+ * @param {String} routeName - Name of the route to update
+ * @param {Array} routeParams - New route parameters
+ *
+ * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+ *                    
+ */
 function updateRoutes(routeTableGroup, routeTableName, routeName, routeParams) {
      return new Promise(
      function (resolve, reject) {
@@ -101,6 +119,15 @@ function updateRoutes(routeTableGroup, routeTableName, routeName, routeParams) {
      });
 }
 
+/**
+ * Determines which routes to update
+ *
+ * @param {Object} routeTables - All of the route tables in the subscription
+ * @param {String} self - The internal self IP address of this BIG-IP
+ *
+ * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+ *                    
+ */
 function matchRoutes(routeTables, self) {     
      var fields = self.split('/');
      var selfIp = fields[0];
@@ -113,6 +140,25 @@ function matchRoutes(routeTables, self) {
      var r;
      var routeName;
      var routeParams;
+     
+     var retryRoutes = function() {
+         return new Promise (
+             function(resolve, reject) {
+                 updateRoutes(routeTableGroup, routeTableName, routeName, routeParams)
+                     .then(function(result) {
+                         logger.info("Update route result: ", result);
+                         resolve();
+                     })
+                     .catch(function(error) {
+                         if (error.statusCode === 429) {
+                             reject();
+                         }
+                         else {
+                             reject(error);
+                         }
+                     });
+             });
+     };
      
      for (t in routeTables) {
           if (routeTables[t].tags && routeTables[t].tags.f5_ha) {
@@ -130,13 +176,7 @@ function matchRoutes(routeTables, self) {
                               routes[r].nextHopIpAddress = selfIp;
                               routeParams = routes[r];
                               
-                              updateRoutes(routeTableGroup, routeTableName, routeName, routeParams)
-                              .then(function (result) {
-                                   logger.info("Update route result: ", result);
-                              })
-                              .catch(function (error) {
-                                   logger.info('Error: ', error);
-                              });
+                              util.tryUntil(this, {maxRetries: 4, retryIntervalMs: 15000}, retryRoutes);
                          }
                     }
                }
@@ -144,6 +184,14 @@ function matchRoutes(routeTables, self) {
      }
 }
 
+/**
+ * Lists all network interface configurations in this resource group
+ *
+ * @param {String} resourceGroup - Name of the resource group
+ *
+ * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+ *                    
+ */
 function listAzNics(resourceGroup) {
      return new Promise(
      function (resolve, reject) {
@@ -159,6 +207,14 @@ function listAzNics(resourceGroup) {
      });
 }
 
+/**
+ * Lists all public IP addresses in this resource group
+ *
+ * @param {String} resourceGroup - Name of the resource group
+ *
+ * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+ *                    
+*/
 function listPublicIPs(resourceGroup) {
      return new Promise(
      function (resolve, reject) {
@@ -174,6 +230,35 @@ function listPublicIPs(resourceGroup) {
      });
 }
 
+/**
+ * Returns a network interface IP configuration
+ *
+ * @param {Object} ipConfig - The full Azure IP configuration 
+ *
+ * @returns {Array} An array of IP configuration parameters
+ *                    
+*/
+function getNicConfig(ipConfig) {
+     return {
+          name: ipConfig.name,
+          privateIPAllocationMethod: ipConfig.privateIPAllocationMethod,
+          privateIPAddress: ipConfig.privateIPAddress, 
+          primary: ipConfig.primary, 
+          publicIPAddress: ipConfig.publicIPAddress,
+          subnet: ipConfig.subnet
+     }
+}
+
+/**
+ * Determines which IP configurations to move to and from network interfaces
+ *
+ * @param {Object} nics - The network interface configurations
+ * @param {Object} pips - The public IP address configurations
+ * @param {String} self - The external self IP address of this BIG-IP
+ *
+ * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+ *                    
+ */
 function matchNics(nics, pips, self) {
      var fields = self.split('/');
      var selfIp = fields[0];    
@@ -251,38 +336,12 @@ function matchNics(nics, pips, self) {
           }
      }
          
-     for (c in theirNicConfig.ipConfigurations) {          
-          theirName = theirNicConfig.ipConfigurations[c].name;
-          theirPrivateIpMethod = theirNicConfig.ipConfigurations[c].privateIPAllocationMethod;
-          theirPrivateIp = theirNicConfig.ipConfigurations[c].privateIPAddress;
-          theirPrimary = theirNicConfig.ipConfigurations[c].primary;
-          theirSubnetId = theirNicConfig.ipConfigurations[c].subnet;
-          theirPublicIpId = theirNicConfig.ipConfigurations[c].publicIPAddress; 
-          theirNicArr.push({
-               'name': theirName, 
-               'privateIPAllocationMethod': theirPrivateIpMethod,
-               'privateIPAddress': theirPrivateIp, 
-               'primary': theirPrimary, 
-               'publicIPAddress': theirPublicIpId,
-               'subnet': theirSubnetId
-          });   
+     for (c in theirNicConfig.ipConfigurations) {
+          theirNicArr.push(getNicConfig(theirNicConfig.ipConfigurations[c]));
      }
      
-     for (c in myNicConfig.ipConfigurations) {         
-          myName = myNicConfig.ipConfigurations[c].name;
-          myPrivateIpMethod = myNicConfig.ipConfigurations[c].privateIPAllocationMethod;
-          myPrivateIp = myNicConfig.ipConfigurations[c].privateIPAddress;
-          myPrimary = myNicConfig.ipConfigurations[c].primary;
-          mySubnetId = myNicConfig.ipConfigurations[c].subnet;
-          myPublicIpId = myNicConfig.ipConfigurations[c].publicIPAddress; 
-          myNicArr.push({
-               'name': myName, 
-               'privateIPAllocationMethod': myPrivateIpMethod,
-               'privateIPAddress': myPrivateIp, 
-               'primary': myPrimary, 
-               'publicIPAddress': myPublicIpId,
-               'subnet': mySubnetId
-          });    
+     for (c in myNicConfig.ipConfigurations) {
+          myNicArr.push(getNicConfig(myNicConfig.ipConfigurations[c]));
      }
      
      for (i=theirNicArr.length-1; i>=0; i--) {
@@ -327,6 +386,16 @@ function matchNics(nics, pips, self) {
      });
 }
 
+/**
+ * Removes specified IP configurations from the remote network interface
+ *
+ * @param {String} resourceGroup - Name of the resource group
+ * @param {String} theirNicName - Name of the network interface to update
+ * @param {Array} theirNicParams - Network interface parameters
+ *
+ * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+ *                    
+ */
 function disassociateNics(resourceGroup, theirNicName, theirNicParams) {
      return new Promise(
      function (resolve, reject) {
@@ -342,6 +411,16 @@ function disassociateNics(resourceGroup, theirNicName, theirNicParams) {
      });
 }
 
+/**
+ * Adds specified IP configurations to the local network interface
+ *
+ * @param {String} resourceGroup - Name of the resource group
+ * @param {String} myNicName - Name of the network interface to update
+ * @param {Array} myNicParams - Network interface parameters
+ *
+ * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+ *                    
+ */
 function associateNics(resourceGroup, myNicName, myNicParams) {
      return new Promise(
      function (resolve, reject) {
