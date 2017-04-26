@@ -27,8 +27,19 @@ var credentials = new msRestAzure.ApplicationTokenCredentials(clientId, tenantId
 var networkManagementClient = require('azure-arm-network');
 var networkClient = new networkManagementClient(credentials, subscriptionId);
 
-var routeFilter = fs.readFileSync('/config/cloud/managedRoutes', 'utf8').replace(/(\r\n|\n|\r)/gm,"").split(',');
-var routeTableTags = fs.readFileSync('/config/cloud/routeTableTag', 'utf8').replace(/(\r\n|\n|\r)/gm,"").split('\n');
+if (fs.existsSync('/config/cloud/managedRoutes')) {
+     var routeFilter = fs.readFileSync('/config/cloud/managedRoutes', 'utf8').replace(/(\r\n|\n|\r)/gm,"").split(',');
+}
+else {
+     logger.info('Managed routes file not found');
+}
+
+if (fs.existsSync('/config/cloud/routeTableTag')) {
+     var routeTableTags = fs.readFileSync('/config/cloud/routeTableTag', 'utf8').replace(/(\r\n|\n|\r)/gm,"").split('\n');
+}
+else {
+     logger.info('Route table tag file not found');
+}
 
 var extIpName = '-ext-pip';
 var extIpConfigName = '-ext-ipconfig';
