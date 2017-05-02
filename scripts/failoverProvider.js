@@ -151,17 +151,19 @@ function matchRoutes(routeTables, self) {
      var r;
      var routeName;
      var routeParams;
+     var routeArr = [];
      
-     var retryRoutes = function() {
+     var retryRoutes = function(routeTableGroup, routeTableName, routeName, routeParams) {  
          return new Promise (
              function(resolve, reject) {
                  updateRoutes(routeTableGroup, routeTableName, routeName, routeParams)
                      .then(function(result) {
-                         logger.info("Update route result: ", result);
-                         resolve();
+                         logger.info("Update route result: ", result);   
+                         resolve();                      
                      })
                      .catch(function(error) {
-                         if (error.statusCode === 429) {
+                          logger.info("Update route error: ", error);
+                         if (error.response.statusCode == "429") {
                              reject();
                          }
                          else {
@@ -186,8 +188,9 @@ function matchRoutes(routeTables, self) {
                               routes[r].nextHopType = 'VirtualAppliance';
                               routes[r].nextHopIpAddress = selfIp;
                               routeParams = routes[r];
+                              routeArr = [routeTableGroup, routeTableName, routeName, routeParams];
                               
-                              util.tryUntil(this, {maxRetries: 4, retryIntervalMs: 15000}, retryRoutes);
+                              util.tryUntil(this, {maxRetries: 4, retryIntervalMs: 15000}, retryRoutes, routeArr);
                          }
                     }
                }
