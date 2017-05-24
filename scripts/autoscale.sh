@@ -28,35 +28,16 @@ while true; do
             break;;
     esac
 done
-# Testing
-echo "List TMSH Self IPs"
-tmsh list net self
-echo "List TMSH Routes"
-tmsh list net route
-echo "List Linux Routes"
-route
-echo "List DHClient Procs"
-ps -ef | grep dhclient
 
-# Need to ensure we can get to metadata service
-route | grep "169.254.169.254" | grep "internal"
-if [[ $? != 0 ]]; then
-     dfl_gw=`tmsh list net route | grep "route default" -C 4 | grep gw | grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}'`
-     echo "Creating metadata service route: 169.254.169.254 using GW: $dfl_gw"
-     route add -net 169.254.169.254 netmask 255.255.255.255 gw $dfl_gw internal
-else
-    echo "Metadata service route already exists"
-fi
 dfl_mgmt_port=`tmsh list sys httpd ssl-port | grep ssl-port | sed 's/ssl-port //;s/ //g'`
 self_ip=`tmsh list net self self_1nic address | grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}'`
-instance=`curl http://169.254.169.254/metadata/v1/InstanceInfo --silent --retry 5 | jq .ID | sed 's/_//;s/\"//g'`
+instance=`curl http://169.254.169.254/metadata/v1/InstanceInfo --interface internal --silent --retry 5 | jq .ID | sed 's/_//;s/\"//g'`
 
 # Add check/loop in case metadata service does not respond right away
 count=0
 while [ $count -lt 5 ]; do
     if [[ -z $instance ]]; then
         sleep 5
-        echo "Attempting to contact the metadata service: $count"
         instance=`curl http://169.254.169.254/metadata/v1/InstanceInfo --interface internal --silent --retry 5 | jq .ID | sed 's/_//;s/\"//g'`
     fi
     count=$(( $count + 1 ))
