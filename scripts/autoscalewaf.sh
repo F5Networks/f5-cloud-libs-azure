@@ -41,6 +41,7 @@ if [[ $? != 0 ]]; then
      route add -net 169.254.169.254 netmask 255.255.255.255 gw $dfl_gw internal
 else
     echo "Metadata service route already exists"
+fi
 dfl_mgmt_port=`tmsh list sys httpd ssl-port | grep ssl-port | sed 's/ssl-port //;s/ //g'`
 self_ip=$(tmsh list net self self_1nic address | grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}')
 instance=`curl http://169.254.169.254/metadata/v1/InstanceInfo --silent --retry 5 | jq .ID | sed 's/_//;s/\"//g'`
