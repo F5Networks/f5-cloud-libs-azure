@@ -35,18 +35,7 @@ echo "WAF_SCRIPT: $waf_script_args"
 
 dfl_mgmt_port=`tmsh list sys httpd ssl-port | grep ssl-port | sed 's/ssl-port //;s/ //g'`
 self_ip=$(tmsh list net self self_1nic address | grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}')
-instance=`curl http://169.254.169.254/metadata/v1/InstanceInfo --interface internal --silent --retry 5 | jq .ID | sed 's/_//;s/\"//g'`
-
-# Add check/loop for self_ip in case BIG-IP is not finished provisioning 1 NIC
-count=0
-while [ $count -lt 15 ]; do
-    if [[ -z $self_ip ]]; then
-        sleep 5
-        self_ip=`tmsh list net self self_1nic address | grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}'`
-    fi
-    count=$(( $count + 1 ))
-done
-echo "SELF IP CHOSEN: $self_ip"
+instance=`curl http://169.254.169.254/metadata/v1/InstanceInfo --silent --retry 5 | jq .ID | sed 's/_//;s/\"//g'`
 # Add check/loop in case metadata service does not respond right away
 count=0
 while [ $count -lt 5 ]; do
@@ -58,6 +47,16 @@ while [ $count -lt 5 ]; do
     count=$(( $count + 1 ))
 done
 echo "INSTANCE NAME CHOSEN: $instance"
+# Add check/loop for self_ip in case BIG-IP is not finished provisioning 1 NIC
+count=0
+while [ $count -lt 10 ]; do
+    if [[ -z $self_ip ]]; then
+        sleep 5
+        self_ip=`tmsh list net self self_1nic address | grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}'`
+    fi
+    count=$(( $count + 1 ))
+done
+echo "SELF IP CHOSEN: $self_ip"
 
 f5-rest-node /config/cloud/node_modules/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/node_modules/f5-cloud-libs --log-level debug --onboard "--output /var/log/onboard.log --log-level debug --host $self_ip --port $dfl_mgmt_port --ssl-port $mgmt_port -u $user --password-url file://$passwd_file --hostname $instance.azuresecurity.com --db provision.1nicautoconfig:disable --db tmm.maxremoteloglength:2048 --module ltm:nominal --module asm:nominal --module afm:none --signal ONBOARD_DONE" --autoscale "--wait-for ONBOARD_DONE --output /var/log/autoscale.log --log-level debug --host $self_ip --port $mgmt_port -u $user --password-url file://$passwd_file --cloud azure --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group --cluster-action join --device-group Sync --block-sync"
 
