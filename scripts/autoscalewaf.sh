@@ -36,8 +36,8 @@ echo "WAF_SCRIPT: $waf_script_args"
 # Need to ensure we can get to metadata service
 route | grep "169.254.169.254" | grep "internal"
 if [[ $? != 0 ]]; then
-     echo "Creating metadata service route: 169.254.169.254"
      dfl_gw=`tmsh list net route | grep "route default" -C 4 | grep gw | grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}'`
+     echo "Creating metadata service route: 169.254.169.254 using GW: $dfl_gw"
      route add -net 169.254.169.254 netmask 255.255.255.255 gw $dfl_gw internal
 else
     echo "Metadata service route already exists"
