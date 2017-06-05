@@ -1,6 +1,6 @@
 #!/bin/bash
 
-ARGS=`getopt -o r:v:u:p:s:m:w: --long resourceGroup:,vmssName:,userName:,password:,azureSecretFile:,managementPort:,wafScriptArgs: -n $0 -- "$@"`
+ARGS=`getopt -o r:v:u:p:s:m:w: --long resourceGroup:,vmssName:,userName:,password:,azureSecretFile:,managementPort:,ntpServer:,timeZone:,wafScriptArgs: -n $0 -- "$@"`
 eval set -- "$ARGS"
 # Parse the command line arguments
 while true; do
