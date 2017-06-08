@@ -56,7 +56,7 @@ bigip.init(
     'file:///config/cloud/passwd',
     {
         passwordIsUrl: true,
-        port: '8443'
+        port: '443'
     }
 )
 .then(function() {
@@ -309,7 +309,7 @@ function matchNics(nics, pips, self) {
     }
 
     for (p in pips) {
-        if (pips[p].tags.f5_privateIp && pips[p].tags.f5_extSubnetId && pips[p].name.includes(extIpName)) {
+        if (pips[p].tags && pips[p].tags.f5_privateIp && pips[p].tags.f5_extSubnetId && pips[p].name.includes(extIpName)) {
             pip = {};
             pip.id = pips[p].id;
             pipName = pips[p].name;
