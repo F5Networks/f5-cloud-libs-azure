@@ -19,6 +19,7 @@ var q = require('q');
 var azureMock;
 var azureNetworkMock;
 var azureStorageMock;
+var azureComputeMock;
 var bigIpMock;
 var utilMock;
 var AzureAutoscaleProvider;
@@ -43,6 +44,7 @@ module.exports = {
         azureMock = require('ms-rest-azure');
         azureNetworkMock = require('azure-arm-network');
         azureStorageMock = require('azure-storage');
+        azureComputeMock = require('azure-arm-compute');
         bigIpMock = require('f5-cloud-libs').bigIp;
 
         AzureAutoscaleProvider = require('../../lib/azureAutoscaleProvider');
@@ -90,7 +92,8 @@ module.exports = {
         testAzureLogin: function(test) {
             var providerOptions = {
                 scaleSet: 'myScaleSet',
-                resourceGroup: 'myResourceGroup'
+                resourceGroup: 'myResourceGroup',
+                azCredentialsUrl: 'file:///foo/bar'
             };
 
             var receivedClientId;
@@ -120,7 +123,7 @@ module.exports = {
             };
 
             test.expect(1);
-            provider.init({})
+            provider.init({azCredentialsUrl: 'file:///foo/bar'})
                 .then(function() {
                     test.ok(false, 'Should have thrown bad url');
                 })
