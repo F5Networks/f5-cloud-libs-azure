@@ -23,7 +23,7 @@ package:
     script:
         - npm run package -- --no-deps
     artifacts:
-        name: f5-cloud-libs-aws-$CI_BUILD_REF
+        name: f5-cloud-libs-azure-$CI_BUILD_REF
         paths:
             - dist/
             - doc/
