@@ -291,6 +291,8 @@ function matchNics(nics, pips, self) {
     var myNicArr = [];
 
     var ourLocation;
+    var theirNsg;
+    var myNsg;
     var theirNicParams;
     var myNicParams;
 
@@ -365,8 +367,10 @@ function matchNics(nics, pips, self) {
     }
 
     ourLocation = myNicConfig.location;
-    theirNicParams = { location: ourLocation, ipConfigurations:theirNicArr };
-    myNicParams = { location: ourLocation, ipConfigurations:myNicArr };
+    theirNsg = theirNicConfig.networkSecurityGroup;
+    myNsg = myNicConfig.networkSecurityGroup;
+    theirNicParams = { location: ourLocation, ipConfigurations:theirNicArr, networkSecurityGroup: theirNsg };
+    myNicParams = { location: ourLocation, ipConfigurations:myNicArr, networkSecurityGroup: myNsg };
 
     disassociateNics(resourceGroup, theirNicName, theirNicParams)
     .then(function (result) {
