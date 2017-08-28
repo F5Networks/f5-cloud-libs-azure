@@ -100,7 +100,7 @@ fi
 if [[ $? == 0 ]]; then
     echo "AUTOSCALE INIT SUCCESS"
 else
-    echo "AUOTSCALE INIT FAIL"
+    echo "AUTOSCALE INIT FAIL"
     exit 1
 fi
 
