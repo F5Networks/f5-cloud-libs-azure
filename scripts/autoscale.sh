@@ -67,7 +67,7 @@ fi
 
 dfl_mgmt_port=$(tmsh list sys httpd ssl-port | grep ssl-port | sed 's/ssl-port //;s/ //g')
 self_ip=$(tmsh list net self self_1nic address | grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}')
-instance=$(curl http://169.254.169.254/metadata/v1/InstanceInfo --interface internal --silent --retry 5 | jq .ID | sed 's/_//;s/\"//g')
+instance=$(curl -H Metadata:true http://169.254.169.254/metadata/instance?api-version=2017-04-02 --interface internal --silent --retry 3 | jq .compute.name --raw-output)
 
 # Add check/loop for self_ip in case BIG-IP is not finished provisioning 1 NIC
 count=0
@@ -79,13 +79,20 @@ while [ $count -lt 10 ]; do
     count=$(( $count + 1 ))
 done
 echo "SELF IP CHOSEN: $self_ip"
+
+# Add missing metadata route on mgmt plane if v13.0.0
+if tmsh show sys version | grep '13.0.0'; then
+    dfl_gw=$(tmsh list net route default | grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}')
+    route add 169.254.169.254 gw $dfl_gw internal
+fi
+
 # Add check/loop in case metadata service does not respond right away
 count=0
 while [ $count -lt 5 ]; do
     if [[ -z $instance ]]; then
         sleep 5
         echo "Attempting to contact the metadata service: $count"
-        instance=$(curl http://169.254.169.254/metadata/v1/InstanceInfo --interface internal --silent --retry 5 | jq .ID | sed 's/_//;s/\"//g')
+        instance=$(curl -H Metadata:true http://169.254.169.254/metadata/instance?api-version=2017-04-02 --silent --retry 3 | jq .compute.name --raw-output)
     fi
     count=$(( $count + 1 ))
 done
@@ -149,5 +156,6 @@ else
     exit 1
 fi
 exit
+
 
 
