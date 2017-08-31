@@ -157,7 +157,7 @@ if [[ ! -z $app_insights_key ]]; then
     icall_handler_name="MetricsCollectorHandler"
     tmsh list sys icall handler | grep $icall_handler_name
     if [[ $? != 0 ]]; then
-        tmsh create sys icall script MetricsCollector definition { exec f5-rest-node /config/cloud/azure/node_modules/f5-cloud-libs/node_modules/f5-cloud-libs-azure/scripts/appInsightsProvider.js --key $app_insights_key --log-level debug }
+        tmsh create sys icall script MetricsCollector definition { exec f5-rest-node /config/cloud/azure/node_modules/f5-cloud-libs/node_modules/f5-cloud-libs-azure/scripts/appInsightsProvider.js --key $app_insights_key --log-level info }
         tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence now interval 60 script /Common/MetricsCollector }
         tmsh save /sys config
     else
