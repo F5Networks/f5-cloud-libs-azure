@@ -13,6 +13,7 @@
     "azure-arm-compute": "^0.19.0",
     "azure-storage": "^2.1.0",
     "ms-rest-azure": "^1.15.0",
+    "applicationinsights": "^0.21.0",
     "q": "^1.4.1"
   },
   "devDependencies": {
