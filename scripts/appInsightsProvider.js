@@ -15,27 +15,28 @@ var fs = require('fs');
 var appInsights = require("applicationinsights");
 var util = require('f5-cloud-libs').util;
 
-var LogLevel = 'info'; // Set to debug/silly for more logging
+ /**
+ * Grab command line arguments
+ */
+options
+    .version('1.0.0')
+
+    .option('--key [type]', 'Application Insights Key', 'specify_key')
+    .option('--log-level [type]', 'Specify the Log Level', 'info')
+    .parse(process.argv);
+
+
 var Logger = require('f5-cloud-libs').logger;
-var logger = Logger.getLogger({logLevel: LogLevel, fileName: '/var/tmp/metricsCollector.log'});
+var logger = Logger.getLogger({logLevel: options.logLevel, fileName: '/var/log/azureMetricsCollector.log'});
 
 var BigIp = require('f5-cloud-libs').bigIp;
 var bigip = new BigIp({logger: logger});
 
-/**
- * Grab command line arguments
- */
-options
-    .version('3.3.1')
-
-    .option('--key <app_insights_key>', 'key')
-    .parse(process.argv);
-
 
 /**
  * Gather Metrics and send to Application Insights
- * Note: add this if debugging appInsights - appInsights.enableVerboseLogging();
  */
+if (options.logLevel == "debug" || options.logLevel == "silly") { appInsights.enableVerboseLogging(); }
 appInsights.setup(options.key);
 var client = appInsights.client;
 
@@ -84,3 +85,4 @@ function calc_tmm_cpu(data) {
     var avg = sum / cpu_list.length;
     return parseInt(avg)
 }
+

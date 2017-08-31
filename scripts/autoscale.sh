@@ -30,6 +30,9 @@ while [[ $# -gt 1 ]]; do
         --wafScriptArgs)
             waf_script_args=$2
             shift 2;;
+        --appInsightsKey)
+            app_insights_key=$2
+            shift 2;;
         --bigIqLicenseHost)
             big_iq_lic_host=$2
             shift 2;;
@@ -149,6 +152,19 @@ else
     echo "Appears the $icall_handler_name icall already exists!"
 fi
 
+# Create iCall to run Application Insights Provider code if customer requested
+if [[ ! -z $app_insights_key ]]; then
+    icall_handler_name="MetricsCollectorHandler"
+    tmsh list sys icall handler | grep $icall_handler_name
+    if [[ $? != 0 ]]; then
+        tmsh create sys icall script MetricsCollector definition { exec f5-rest-node /config/cloud/azure/node_modules/f5-cloud-libs/node_modules/f5-cloud-libs-azure/scripts/appInsightsProvider.js --key $app_insights_key --log-level debug }
+        tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence now interval 60 script /Common/MetricsCollector }
+        tmsh save /sys config
+    else
+        echo "Appears the $icall_handler_name icall already exists!"
+    fi
+fi
+
 if [[ $? == 0 ]]; then
     echo "AUTOSCALE INIT SUCCESS"
 else
@@ -156,6 +172,7 @@ else
     exit 1
 fi
 exit
+
 
 
 
