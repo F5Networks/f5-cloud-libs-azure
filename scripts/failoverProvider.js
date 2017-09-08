@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/*jshint loopfunc:true */
 
 var LogLevel = 'info';
 var Logger = require('f5-cloud-libs').logger;
@@ -11,8 +12,8 @@ if (fs.existsSync('/config/cloud/azCredentials')) {
     var credentialsFile = JSON.parse(fs.readFileSync('/config/cloud/azCredentials', 'utf8'));
 }
 else {
-     logger.info('Credentials file not found');
-     return;
+    logger.info('Credentials file not found');
+    return;
 }
 
 var subscriptionId = credentialsFile.subscriptionId;
@@ -31,6 +32,7 @@ if (fs.existsSync('/config/cloud/managedRoutes')) {
     var routeFilter = fs.readFileSync('/config/cloud/managedRoutes', 'utf8').replace(/(\r\n|\n|\r)/gm,"").split(',');
 }
 else {
+    var routeFilter = [];
     logger.info('Managed routes file not found');
 }
 
@@ -38,6 +40,7 @@ if (fs.existsSync('/config/cloud/routeTableTag')) {
     var routeTableTags = fs.readFileSync('/config/cloud/routeTableTag', 'utf8').replace(/(\r\n|\n|\r)/gm,"").split('\n');
 }
 else {
+    var routeTableTags = [];
     logger.info('Route table tag file not found');
 }
 
@@ -50,6 +53,9 @@ var bigip;
 BigIp = require('f5-cloud-libs').bigIp;
 bigip = new BigIp({logger: logger});
 
+var tgStats = [];
+var globalSettings = [];
+
 bigip.init(
     'localhost',
     'admin',
@@ -61,33 +67,44 @@ bigip.init(
 )
 .then(function() {
     Promise.all([
-    listRouteTables(),
-        bigip.list('/tm/net/self/self_3nic'),
+        bigip.list('/tm/cm/traffic-group/stats'),
+        bigip.list('/tm/sys/global-settings'),
     ])
     .then((results) => {
-        matchRoutes(results[0], results[1].address);
+        tgStats = results[0];
+        globalSettings = results[1];
+        Promise.all([
+            listRouteTables(),
+            bigip.list('/tm/net/self/self_3nic'),
+        ])
+        .then((results) => {
+            matchRoutes(results[0], results[1].address, tgStats, globalSettings);
+        })
+        .catch(err => {
+            logger.info('Error: ', err);
+        });
+        Promise.all([
+            listAzNics(resourceGroup),
+            listPublicIPs(resourceGroup),
+            bigip.list('/tm/net/self/self_2nic'),
+            ])
+        .then((results) => {
+            matchNics(results[0], results[1], results[2].address, tgStats, globalSettings);
+        })
+        .catch(err => {
+            logger.info('Error in failover: ', err);
+        });
     })
     .catch(err => {
-        logger.info('Error: ', err);
-    });
-    Promise.all([
-        listAzNics(resourceGroup),
-        listPublicIPs(resourceGroup),
-        bigip.list('/tm/net/self/self_2nic'),
-    ])
-    .then((results) => {
-        matchNics(results[0], results[1], results[2].address);
-    })
-    .catch(err => {
-        logger.info('Error: ', err);
+        logger.info('Error getting device information: ', err);
     });
 });
 
 /**
- * Lists all route tables in the subscription
- *
- * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
- */
+* Lists all route tables in the subscription
+*
+* @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+*/
 function listRouteTables() {
     return new Promise(
     function (resolve, reject) {
@@ -104,15 +121,15 @@ function listRouteTables() {
 }
 
 /**
- * Updates specified Azure user defined routes
- *
- * @param {String} routeTableGroup - Name of the route table resource group
- * @param {String} routeTableName - Name of the route table
- * @param {String} routeName - Name of the route to update
- * @param {Array} routeParams - New route parameters
- *
- * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
- */
+* Updates specified Azure user defined routes
+*
+* @param {String} routeTableGroup - Name of the route table resource group
+* @param {String} routeTableName - Name of the route table
+* @param {String} routeName - Name of the route to update
+* @param {Array} routeParams - New route parameters
+*
+* @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+*/
 function updateRoutes(routeTableGroup, routeTableName, routeName, routeParams) {
     return new Promise(
     function (resolve, reject) {
@@ -129,37 +146,41 @@ function updateRoutes(routeTableGroup, routeTableName, routeName, routeParams) {
 }
 
 /**
- * Determines which routes to update
- *
- * @param {Object} routeTables - All of the route tables in the subscription
- * @param {String} self - The internal self IP address of this BIG-IP
- *
- * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
- */
-function matchRoutes(routeTables, self) {
-    var fields = self.split('/');
-    var selfIp = fields[0];
+* Determines which routes to update
+*
+* @param {Object} routeTables - All of the route tables in the subscription
+* @param {String} self - The internal self IP address of this BIG-IP
+*
+*/
+function matchRoutes(routeTables, self, tgs, global) {
+    var hostname = global.hostname;
+    var entries = tgs.entries;
+    var key;
 
-    var t;
-    var tag;
-    var routeTableGroup;
-    var routeTableName;
-    var routes;
-    var r;
-    var routeName;
-    var routeParams;
-    var routeArr = [];
+    for (key in entries) {
+        if (entries[key].nestedStats.entries.deviceName.description.includes(hostname) && entries[key].nestedStats.entries.trafficGroup.description.includes("traffic-group-1") && entries[key].nestedStats.entries.failoverState.description == "active") {
+            var fields = self.split('/');
+            var selfIp = fields[0];
 
-    var retryRoutes = function(routeTableGroup, routeTableName, routeName, routeParams) {
-        return new Promise (
-            function(resolve, reject) {
-                updateRoutes(routeTableGroup, routeTableName, routeName, routeParams)
-                    .then(function(result) {
-                        logger.info("Update route result: ", result);
+            var tag;
+            var routeTableGroup;
+            var routeTableName;
+            var routes;
+            var routeName;
+            var routeParams;
+            var routeArr = [];
+
+            var retryRoutes = function(routeTableGroup, routeTableName, routeName, routeParams) {
+                return new Promise (
+                function(resolve, reject) {
+                    updateRoutes(routeTableGroup, routeTableName, routeName, routeParams)
+                    .then(function() {
+                        logger.info("Update route successful.");
                         resolve();
                     })
                     .catch(function(error) {
                         logger.info("Update route error: ", error);
+                        //a 429 response indicates an error which is generally retryable within 15 seconds
                         if (error.response.statusCode == "429") {
                             reject();
                         }
@@ -167,42 +188,44 @@ function matchRoutes(routeTables, self) {
                             reject(error);
                         }
                     });
-            });
-    };
+                });
+            };
 
-    for (t in routeTables) {
-        if (routeTables[t].tags && routeTables[t].tags.f5_ha) {
-            tag = routeTables[t].tags.f5_ha;
+            routeTables.forEach(function(routeTable) {
+                if (routeTable.tags && routeTable.tags.f5_ha) {
+                    tag = routeTable.tags.f5_ha;
 
-            if (routeTableTags.indexOf(tag) !== -1) {
-                routeTableGroup = routeTables[t].id.split("/")[4];
-                routeTableName = routeTables[t].name;
-                routes = routeTables[t].routes;
+                    if (routeTableTags.indexOf(tag) !== -1) {
+                        routeTableGroup = routeTable.id.split("/")[4];
+                        routeTableName = routeTable.name;
+                        routes = routeTable.routes;
 
-                for (r in routes) {
-                    if (routeFilter.indexOf(routes[r].addressPrefix) !== -1) {
-                        routeName = routes[r].name;
-                        routes[r].nextHopType = 'VirtualAppliance';
-                        routes[r].nextHopIpAddress = selfIp;
-                        routeParams = routes[r];
+                        routes.forEach(function(route) {
+                            if (routeFilter.indexOf(route.addressPrefix) !== -1) {
+                                routeName = route.name;
+                                route.nextHopType = 'VirtualAppliance';
+                                route.nextHopIpAddress = selfIp;
+                                routeParams = route;
 
-                        routeArr = [routeTableGroup, routeTableName, routeName, routeParams];
+                                routeArr = [routeTableGroup, routeTableName, routeName, routeParams];
 
-                        util.tryUntil(this, {maxRetries: 4, retryIntervalMs: 15000}, retryRoutes, routeArr);
+                                util.tryUntil(this, {maxRetries: 4, retryIntervalMs: 15000}, retryRoutes, routeArr);
+                            }
+                        });
                     }
                 }
-            }
+            });
         }
     }
 }
 
 /**
- * Lists all network interface configurations in this resource group
- *
- * @param {String} resourceGroup - Name of the resource group
- *
- * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
- */
+* Lists all network interface configurations in this resource group
+*
+* @param {String} resourceGroup - Name of the resource group
+*
+* @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+*/
 function listAzNics(resourceGroup) {
     return new Promise(
     function (resolve, reject) {
@@ -219,11 +242,11 @@ function listAzNics(resourceGroup) {
 }
 
 /**
- * Lists all public IP addresses in this resource group
- *
- * @param {String} resourceGroup - Name of the resource group
- *
- * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+* Lists all public IP addresses in this resource group
+*
+* @param {String} resourceGroup - Name of the resource group
+*
+* @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
 */
 function listPublicIPs(resourceGroup) {
     return new Promise(
@@ -241,11 +264,11 @@ function listPublicIPs(resourceGroup) {
 }
 
 /**
- * Returns a network interface IP configuration
- *
- * @param {Object} ipConfig - The full Azure IP configuration 
- *
- * @returns {Array} An array of IP configuration parameters
+* Returns a network interface IP configuration
+*
+* @param {Object} ipConfig - The full Azure IP configuration
+*
+* @returns {Array} An array of IP configuration parameters
 */
 function getNicConfig(ipConfig) {
     return {
@@ -259,126 +282,195 @@ function getNicConfig(ipConfig) {
 }
 
 /**
- * Determines which IP configurations to move to and from network interfaces
- *
- * @param {Object} nics - The network interface configurations
- * @param {Object} pips - The public IP address configurations
- * @param {String} self - The external self IP address of this BIG-IP
- *
- * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
- */
-function matchNics(nics, pips, self) {
+* Determines which IP configurations to move to and from network interfaces
+*
+* @param {Object} nics - The network interface configurations
+* @param {Object} pips - The public IP address configurations
+* @param {String} self - The external self IP address of this BIG-IP
+*
+* @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+*/
+function matchNics(nics, pips, self, tgs, global) {
+    var hostname = global.hostname;
+    var entries = tgs.entries;
+    var key;
+    var myTrafficGroupsArr = [];
+
+    for (key in entries) {
+        if ( entries[key].nestedStats.entries.deviceName.description.includes(hostname) && entries[key].nestedStats.entries.failoverState.description == "active" ) {
+            myTrafficGroupsArr.push({
+                'trafficGroup': entries[key].nestedStats.entries.trafficGroup.description
+            });
+        }
+    }
+
+    var i;
+    var t;
+
     var fields = self.split('/');
     var selfIp = fields[0];
 
-    var i;
     var ipConfigurations;
-    var p;
-    var myNicName;
-    var myNicConfig;
+
     var theirNicName;
     var theirNicConfig;
+    var theirNicParams;
+
+    var myNicName;
+    var myNicConfig;
+    var myNicParams;
 
     var orphanedPipsArr = [];
-    var pip;
+    var trafficGroupPipArr = [];
+
+    var pipConfig;
     var pipName;
     var name;
     var pipPrivate;
     var subnet;
+    var pipTrafficGroup;
 
-    var c;
     var theirNicArr = [];
     var myNicArr = [];
 
     var ourLocation;
     var theirNsg;
     var myNsg;
-    var theirNicParams;
-    var myNicParams;
 
-    for (i in nics) {
-        ipConfigurations = nics[i].ipConfigurations;
-        for (p in ipConfigurations) {
-            if (ipConfigurations[p].privateIPAddress === selfIp) {
-                myNicName = nics[i].name;
-                myNicConfig = nics[i];
+    var associateArr = [];
+    var disassociateArr = [];
+
+    var retryDissassociateNics = function(resourceGroup, theirNicName, theirNicParams) {
+        return new Promise (
+        function(resolve, reject) {
+            disassociateNics(resourceGroup, theirNicName, theirNicParams)
+            .then(function() {
+                resolve();
+            })
+            .catch(function(error) {
+                logger.info("Disassociate NICs error: ", error);
+                if (error.response.statusCode == "200") {
+                    resolve();
+                }
+                else {
+                    reject(error);
+                }
+            });
+        });
+    };
+
+    var retryAssociateNics = function(resourceGroup, myNicName, myNicParams) {
+        return new Promise (
+        function(resolve, reject) {
+            associateNics(resourceGroup, myNicName, myNicParams)
+            .then(function() {
+                resolve();
+            })
+            .catch(function(error) {
+                logger.info("Associate NICs error: ", error);
+                if (error.response.statusCode == "200") {
+                    resolve();
+                }
+                else {
+                    reject(error);
+                }
+            });
+        });
+    };
+
+    nics.forEach(function(nic) {
+        ipConfigurations = nic.ipConfigurations;
+        ipConfigurations.forEach(function(ipConfiguration) {
+            if (ipConfiguration.privateIPAddress === selfIp) {
+                myNicName = nic.name;
+                myNicConfig = nic;
             }
-            else if (ipConfigurations[p].privateIPAddress !== selfIp && ipConfigurations[p].id.includes(selfIpConfigName)) {
-                theirNicName = nics[i].name;
-                theirNicConfig = nics[i];
+            else if (ipConfiguration.privateIPAddress !== selfIp && ipConfiguration.id.includes(selfIpConfigName)) {
+                theirNicName = nic.name;
+                theirNicConfig = nic;
             }
-        }
+        });
+    });
+
+    if ( !myNicName || !myNicConfig || !theirNicName || !theirNicConfig ) {
+        logger.info("Could not determine network interfaces.");
     }
 
-    for (p in pips) {
-        if (pips[p].tags && pips[p].tags.f5_privateIp && pips[p].tags.f5_extSubnetId && pips[p].name.includes(extIpName)) {
-            pip = {};
-            pip.id = pips[p].id;
-            pipName = pips[p].name;
+    pips.forEach(function(pip) {
+        if (pip.tags && pip.tags.f5_privateIp && pip.tags.f5_extSubnetId && pip.tags.f5_tg && pip.name.includes(extIpName)) {
+            pipConfig = {};
+            pipConfig.id = pip.id;
+            pipName = pip.name;
             name = pipName.replace(extIpName, extIpConfigName);
-            pipPrivate = pips[p].tags.f5_privateIp;
+            pipPrivate = pip.tags.f5_privateIp;
             subnet = {};
-            subnet.id = pips[p].tags.f5_extSubnetId;
+            subnet.id = pip.tags.f5_extSubnetId;
 
-            if (!pips[p].ipConfiguration) {
-                orphanedPipsArr.push({
-                    'name': name,
-                    'privateIPAllocationMethod': 'Static',
-                    'privateIPAddress': pipPrivate,
-                    'primary': false,
-                    'publicIPAddress': pip,
-                    'subnet': subnet
-                });
-            }
+            pipTrafficGroup = pip.tags.f5_tg;
+
+            myTrafficGroupsArr.forEach(function(tgmember) {
+                if (tgmember.trafficGroup.includes(pipTrafficGroup)) {
+                    if (!pip.ipConfiguration) {
+                        orphanedPipsArr.push({
+                            'name': name,
+                            'privateIPAllocationMethod': 'Static',
+                            'privateIPAddress': pipPrivate,
+                            'primary': false,
+                            'publicIPAddress': pipConfig,
+                            'subnet': subnet
+                        });
+                    }
+                    else {
+                        trafficGroupPipArr.push({
+                            'publicIPAddress': pipConfig
+                        });
+                    }
+                }
+            });
         }
-    }
+    });
 
-    for (c in theirNicConfig.ipConfigurations) {
-        theirNicArr.push(getNicConfig(theirNicConfig.ipConfigurations[c]));
-    }
+    theirNicConfig.ipConfigurations.forEach(function(ipConfiguration) {
+        theirNicArr.push(getNicConfig(ipConfiguration));
+    });
 
-    for (c in myNicConfig.ipConfigurations) {
-        myNicArr.push(getNicConfig(myNicConfig.ipConfigurations[c]));
-    }
+    myNicConfig.ipConfigurations.forEach(function(ipConfiguration) {
+        myNicArr.push(getNicConfig(ipConfiguration));
+    });
 
     for (i=theirNicArr.length-1; i>=0; i--) {
         if (theirNicArr[i].name.includes(extIpConfigName)) {
-            myNicArr.push({
-                'name': theirNicArr[i].name,
-                'privateIPAllocationMethod': theirNicArr[i].privateIPAllocationMethod,
-                'privateIPAddress': theirNicArr[i].privateIPAddress,
-                'primary': theirNicArr[i].primary,
-                'publicIPAddress': theirNicArr[i].publicIPAddress,
-                'subnet': theirNicArr[i].subnet
-            });
-            theirNicArr.splice(i, 1);
+            for (t=trafficGroupPipArr.length-1; t>=0; t--) {
+                if (trafficGroupPipArr[t].publicIPAddress.id.includes(theirNicArr[i].publicIPAddress.id)) {
+                    myNicArr.push(getNicConfig(theirNicArr[i]));
+                    theirNicArr.splice(i, 1);
+                    break;
+                }
+            }
         }
     }
 
     for (i=orphanedPipsArr.length-1; i>=0; i--) {
-      myNicArr.push({
-           'name': orphanedPipsArr[i].name,
-           'privateIPAllocationMethod': orphanedPipsArr[i].privateIPAllocationMethod,
-           'privateIPAddress': orphanedPipsArr[i].privateIPAddress,
-           'primary': orphanedPipsArr[i].primary,
-           'publicIPAddress': orphanedPipsArr[i].publicIPAddress,
-           'subnet': orphanedPipsArr[i].subnet
-      });
+        myNicArr.push(getNicConfig(orphanedPipsArr[i]));
     }
 
     ourLocation = myNicConfig.location;
     theirNsg = theirNicConfig.networkSecurityGroup;
     myNsg = myNicConfig.networkSecurityGroup;
+
     theirNicParams = { location: ourLocation, ipConfigurations:theirNicArr, networkSecurityGroup: theirNsg };
     myNicParams = { location: ourLocation, ipConfigurations:myNicArr, networkSecurityGroup: myNsg };
 
-    disassociateNics(resourceGroup, theirNicName, theirNicParams)
-    .then(function (result) {
-        logger.info("Disassociate NICs result: ", result);
-        associateNics(resourceGroup, myNicName, myNicParams);
+    disassociateArr = [resourceGroup, theirNicName, theirNicParams];
+    associateArr = [resourceGroup, myNicName, myNicParams];
+
+    util.tryUntil(this, {maxRetries: 4, retryIntervalMs: 15000}, retryDissassociateNics, disassociateArr)
+    .then(function () {
+        logger.info("Disassociate NICs successful.");
+        return util.tryUntil(this, {maxRetries: 4, retryIntervalMs: 15000}, retryAssociateNics, associateArr);
     })
-    .then(function (result) {
-        logger.info("Associate NICs result: ", result);
+    .then(function () {
+        logger.info("Associate NICs successful.");
     })
     .catch(function (error) {
         logger.info('Error: ', error);
@@ -386,38 +478,38 @@ function matchNics(nics, pips, self) {
 }
 
 /**
- * Removes specified IP configurations from the remote network interface
- *
- * @param {String} resourceGroup - Name of the resource group
- * @param {String} theirNicName - Name of the network interface to update
- * @param {Array} theirNicParams - Network interface parameters
- *
- * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
- */
+* Removes specified IP configurations from the remote network interface
+*
+* @param {String} resourceGroup - Name of the resource group
+* @param {String} theirNicName - Name of the network interface to update
+* @param {Array} theirNicParams - Network interface parameters
+*
+* @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+*/
 function disassociateNics(resourceGroup, theirNicName, theirNicParams) {
     return new Promise(
-        function (resolve, reject) {
-            networkClient.networkInterfaces.createOrUpdate(resourceGroup, theirNicName, theirNicParams,
-            (error, data) => {
-                if (error) {
-                    reject(error);
-                }
-                else {
-                    resolve(data);
-                }
-            });
+    function (resolve, reject) {
+        networkClient.networkInterfaces.createOrUpdate(resourceGroup, theirNicName, theirNicParams,
+        (error, data) => {
+            if (error) {
+                reject(error);
+            }
+            else {
+                resolve(data);
+            }
         });
+    });
 }
 
 /**
- * Adds specified IP configurations to the local network interface
- *
- * @param {String} resourceGroup - Name of the resource group
- * @param {String} myNicName - Name of the network interface to update
- * @param {Array} myNicParams - Network interface parameters
- *
- * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
- */
+* Adds specified IP configurations to the local network interface
+*
+* @param {String} resourceGroup - Name of the resource group
+* @param {String} myNicName - Name of the network interface to update
+* @param {Array} myNicParams - Network interface parameters
+*
+* @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+*/
 function associateNics(resourceGroup, myNicName, myNicParams) {
     return new Promise(
     function (resolve, reject) {
