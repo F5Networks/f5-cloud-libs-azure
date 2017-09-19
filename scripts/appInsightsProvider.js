@@ -47,7 +47,7 @@ var trafficMetricName = 'F5_TRAFFIC_TOTAL_BYTES';
 bigip.init(
     'localhost',
     'admin',
-    'file:///config/cloud/passwd',
+    'file:///config/cloud/.passwd',
     {
         passwordIsUrl: true,
         port: '8443'

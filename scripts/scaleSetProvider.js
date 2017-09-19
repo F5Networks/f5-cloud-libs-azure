@@ -7,8 +7,8 @@ var logger = Logger.getLogger({logLevel: LogLevel, fileName: '/var/tmp/azureScal
 var util = require('f5-cloud-libs').util;
 var fs = require('fs');
 
-if (fs.existsSync('/config/cloud/azCredentials')) {
-    var credentialsFile = JSON.parse(fs.readFileSync('/config/cloud/azCredentials', 'utf8'));
+if (fs.existsSync('/config/cloud/.azCredentials')) {
+    var credentialsFile = JSON.parse(fs.readFileSync('/config/cloud/.azCredentials', 'utf8'));
 }
 else {
      logger.info('Credentials file not found');
@@ -46,7 +46,7 @@ logger.info('Instance ID: ' + instanceId + ' Load Balancer Name: ' + loadBalance
 bigip.init(
     'localhost',
     'admin',
-    'file:///config/cloud/passwd',
+    'file:///config/cloud/.passwd',
     {
         passwordIsUrl: true,
         port: '8443'

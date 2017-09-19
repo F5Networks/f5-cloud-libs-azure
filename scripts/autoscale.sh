@@ -109,7 +109,7 @@ if [[ ! -z $big_iq_lic_host ]]; then
         ## Have to go get MGMT port ourselves based on instance we are on ##
         # Add Instance ID to file as node provider expects it to be there
         instance_id=$(echo $instance | grep -E -o "_.{0,3}" | sed 's/_//;s/\"//g')
-        jq -c .instanceId=$instance_id /config/cloud/azCredentials > tmp.$$.json && mv tmp.$$.json /config/cloud/azCredentials
+        jq -c .instanceId=$instance_id $azure_secret_file > tmp.$$.json && mv tmp.$$.json $azure_secret_file
         # Make Azure Rest API call to get frontend port
         ext_port_via_api=$(/usr/bin/f5-rest-node --use-strict /config/cloud/azure/node_modules/f5-cloud-libs/node_modules/f5-cloud-libs-azure/scripts/scaleSetProvider.js)
         big_ip_ext_mgmt_port=$(echo $ext_port_via_api | grep 'Port Selected: ' | awk -F 'Selected: ' '{print $2}')
