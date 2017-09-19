@@ -159,19 +159,19 @@ if [[ ! -z $app_insights_key ]]; then
     if [[ $? != 0 ]]; then
         tmsh create sys icall script MetricsCollector definition { exec f5-rest-node /config/cloud/azure/node_modules/f5-cloud-libs/node_modules/f5-cloud-libs-azure/scripts/appInsightsProvider.js --key $app_insights_key --log-level info }
         tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence now interval 60 script /Common/MetricsCollector }
-        tmsh save /sys config
-
         # Need to replace this with a check to determine when the custom Application Insights metric
-        # just created (possibly) is available for consumption by VM Scale sets - Appears to be between 60-120 seconds
+        # just created (possibly) is available for consumption by VM Scale sets - Appears to be between 90-180 seconds
         # Could potentially use Application Insights API (beta) which requires creation of an API key to query
         if [ -f /config/cloud/master ]; then
-            sleep 180
+            sleep 210
         fi
 
     else
         echo "Appears the $icall_handler_name icall already exists!"
     fi
 fi
+# Save TMSH Configuration
+tmsh save /sys config
 
 if [[ $? == 0 ]]; then
     echo "AUTOSCALE INIT SUCCESS"
