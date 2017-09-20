@@ -146,7 +146,7 @@ icall_handler_name="ClusterUpdateHandler"
 tmsh list sys icall handler | grep $icall_handler_name
 if [[ $? != 0 ]]; then
     tmsh create sys icall script ClusterUpdate definition { exec f5-rest-node /config/cloud/azure/node_modules/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/f5-cloud-libs --log-level debug --autoscale "--cloud azure --log-level debug --output /var/log/azure-autoscale.log --host localhost --port $mgmt_port --user $user --password-url file://$passwd_file --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group --cluster-action update --device-group Sync" }
-    tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence now interval 300 script /Common/ClusterUpdate }
+    tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence now interval 120 script /Common/ClusterUpdate }
     tmsh save /sys config
 else
     echo "Appears the $icall_handler_name icall already exists!"
