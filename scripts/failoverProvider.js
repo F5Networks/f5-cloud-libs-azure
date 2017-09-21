@@ -156,67 +156,77 @@ function matchRoutes(routeTables, self, tgs, global) {
     var hostname = global.hostname;
     var entries = tgs.entries;
     var key;
+    var myTrafficGroupsArr = [];
 
     for (key in entries) {
-        if (entries[key].nestedStats.entries.deviceName.description.includes(hostname) && entries[key].nestedStats.entries.trafficGroup.description.includes("traffic-group-1") && entries[key].nestedStats.entries.failoverState.description == "active") {
-            var fields = self.split('/');
-            var selfIp = fields[0];
-
-            var tag;
-            var routeTableGroup;
-            var routeTableName;
-            var routes;
-            var routeName;
-            var routeParams;
-            var routeArr = [];
-
-            var retryRoutes = function(routeTableGroup, routeTableName, routeName, routeParams) {
-                return new Promise (
-                function(resolve, reject) {
-                    updateRoutes(routeTableGroup, routeTableName, routeName, routeParams)
-                    .then(function() {
-                        logger.info("Update route successful.");
-                        resolve();
-                    })
-                    .catch(function(error) {
-                        logger.info("Update route error: ", error);
-                        //a 429 response indicates an error which is generally retryable within 15 seconds
-                        if (error.response.statusCode == "429") {
-                            reject();
-                        }
-                        else {
-                            reject(error);
-                        }
-                    });
-                });
-            };
-
-            routeTables.forEach(function(routeTable) {
-                if (routeTable.tags && routeTable.tags.f5_ha) {
-                    tag = routeTable.tags.f5_ha;
-
-                    if (routeTableTags.indexOf(tag) !== -1) {
-                        routeTableGroup = routeTable.id.split("/")[4];
-                        routeTableName = routeTable.name;
-                        routes = routeTable.routes;
-
-                        routes.forEach(function(route) {
-                            if (routeFilter.indexOf(route.addressPrefix) !== -1) {
-                                routeName = route.name;
-                                route.nextHopType = 'VirtualAppliance';
-                                route.nextHopIpAddress = selfIp;
-                                routeParams = route;
-
-                                routeArr = [routeTableGroup, routeTableName, routeName, routeParams];
-
-                                util.tryUntil(this, {maxRetries: 4, retryIntervalMs: 15000}, retryRoutes, routeArr);
-                            }
-                        });
-                    }
-                }
+        if (entries[key].nestedStats.entries.deviceName.description.includes(hostname) && entries[key].nestedStats.entries.failoverState.description == "active") {
+            myTrafficGroupsArr.push({
+                'trafficGroup': entries[key].nestedStats.entries.trafficGroup.description
             });
         }
     }
+
+    var fields = self.split('/');
+    var selfIp = fields[0];
+
+    var routeTag;
+    var tgTag;
+    var t;
+    var routeTableGroup;
+    var routeTableName;
+    var routes;
+    var routeName;
+    var routeParams;
+    var routeArr = [];
+
+    var retryRoutes = function(routeTableGroup, routeTableName, routeName, routeParams) {
+        return new Promise (
+        function(resolve, reject) {
+            updateRoutes(routeTableGroup, routeTableName, routeName, routeParams)
+            .then(function() {
+                logger.info("Update route successful.");
+                resolve();
+            })
+            .catch(function(error) {
+                logger.info("Update route error: ", error);
+                //a 429 response indicates an error which is generally retryable within 15 seconds
+                if (error.response.statusCode == "429") {
+                    reject();
+                }
+                else {
+                    reject(error);
+                }
+            });
+        });
+    };
+
+    routeTables.forEach(function(routeTable) {
+        if (routeTable.tags && routeTable.tags.f5_ha && routeTable.tags.f5_tg) {
+            routeTag = routeTable.tags.f5_ha;
+            tgTag = routeTable.tags.f5_tg;
+
+            for (t=myTrafficGroupsArr.length-1; t>=0; t--) {
+                if (myTrafficGroupsArr[t].trafficGroup.includes(tgTag) && routeTableTags.indexOf(routeTag) !== -1) {
+                    routeTableGroup = routeTable.id.split("/")[4];
+                    routeTableName = routeTable.name;
+                    routes = routeTable.routes;
+
+                    routes.forEach(function(route) {
+                        if (routeFilter.indexOf(route.addressPrefix) !== -1) {
+                            routeName = route.name;
+                            route.nextHopType = 'VirtualAppliance';
+                            route.nextHopIpAddress = selfIp;
+                            routeParams = route;
+
+                            routeArr = [routeTableGroup, routeTableName, routeName, routeParams];
+
+                            util.tryUntil(this, {maxRetries: 4, retryIntervalMs: 15000}, retryRoutes, routeArr);
+                        }
+                    });
+                }
+            }
+        }
+    });
 }
 
 /**
