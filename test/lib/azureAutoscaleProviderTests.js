@@ -32,8 +32,9 @@ var subscriptionId = 'mySubscriptionId';
 var storageAccount = 'myStorageAccount';
 var storageKey = 'myStorageKey';
 
-var ipAddress = '1.2.3.4';
 var ucsEntries = [];
+
+var createBlobFromTextParams;
 
 // Our tests cause too many event listeners. Turn off the check.
 process.setMaxListeners(0);
@@ -138,36 +139,35 @@ module.exports = {
 
     testGetInstanceId: {
         setUp: function(callback) {
-            bigIpMock.list = function() {
-                return q([
-                            {
-                                address: ipAddress + '/24'
-                            }
-                         ]);
+            utilMock.getDataFromUrl = function() {
+                return q({
+                    compute: {
+                        name: 'instance456'
+                    }
+                });
             };
 
-            azureNetworkMock.networkInterfaces = {
-                listVirtualMachineScaleSetNetworkInterfaces: function(resourceGroup, scaleSet, cb) {
-                    cb(null, {
-                        '123': {
-                            ipConfigurations: [
-                                {
-                                    privateIPAddress: '5.6.7.8'
-                                }
-                            ]
-                        },
-                        '456': {
-                            ipConfigurations: [
-                                {
-                                    privateIPAddress: ipAddress
-                                }
-                            ]
-                        }
-                    });
+            azureComputeMock.virtualMachineScaleSetVMs = {
+                list: function(resourceGroup, scaleSetName, cb) {
+                    cb(
+                        null,
+                        [
+                            {
+                                instanceId: '123',
+                                provisioningState: 'Succeeded',
+                                name: 'instance123'
+                            },
+                            {
+                                instanceId: '456',
+                                provisioningState: 'Succeeded',
+                                name: 'instance456'
+                            }
+                        ]
+                    );
                 }
             };
 
-            provider.bigIp = bigIpMock;
+            provider.computeClient = azureComputeMock;
             provider.networkClient = azureNetworkMock;
 
             callback();
@@ -202,77 +202,40 @@ module.exports = {
                 });
         },
 
-        testIpNotFound: function(test) {
-            azureNetworkMock.networkInterfaces = {
-                listVirtualMachineScaleSetNetworkInterfaces: function(resourceGroup, scaleSet, cb) {
-                    cb(null, {
-                        '123': {
-                            ipConfigurations: [
-                                {
-                                    privateIPAddress: '5.6.7.8'
-                                }
-                            ]
-                        },
-                        '456': {
-                            ipConfigurations: [
-                                {
-                                    privateIPAddress: '7.8.9.0'
-                                }
-                            ]
-                        }
-                    });
-                }
-            };
-
-            test.expect(1);
-            provider.getInstanceId()
-                .then(function() {
-                    test.ok(false, 'should have thrown ip not found');
-                })
-                .catch(function(err) {
-                    test.notStrictEqual(err.message.indexOf('was not found'), -1);
-                })
-                .finally(function() {
-                    test.done();
+        testOurNameNotFound: function(test) {
+            utilMock.getDataFromUrl = function() {
+                return q({
+                    compute: {
+                        name: 'instance789'
+                    }
                 });
-
-        },
-
-        testBigIpError: function(test) {
-            var errorMessage = 'foobar';
-
-            bigIpMock.list = function() {
-                return q.reject(new Error(errorMessage));
             };
 
             test.expect(1);
             provider.getInstanceId()
                 .then(function() {
-                    test.ok(false, 'should have thrown network error');
+                    test.ok(false, 'should have thrown id not found');
                 })
                 .catch(function(err) {
-                    test.strictEqual(err.message, errorMessage);
+                    test.notStrictEqual(err.message.indexOf('Unable to determine'), -1);
                 })
                 .finally(function() {
                     test.done();
                 });
         },
 
-        testNetworkClientError: function(test) {
-            var errorMessage = 'foobar';
-            azureNetworkMock.networkInterfaces = {
-                listVirtualMachineScaleSetNetworkInterfaces: function(resourceGroup, scaleSet, cb) {
-                    cb(new Error(errorMessage), {});
-                }
+        testBadMetaData: function(test) {
+            utilMock.getDataFromUrl = function() {
+                return q({});
             };
 
             test.expect(1);
             provider.getInstanceId()
                 .then(function() {
-                    test.ok(false, 'should have thrown network error');
+                    test.ok(false, 'should have thrown id not found');
                 })
                 .catch(function(err) {
-                    test.strictEqual(err.message, errorMessage);
+                    test.notStrictEqual(err.message.indexOf('Unable to determine'), -1);
                 })
                 .finally(function() {
                     test.done();
@@ -293,10 +256,33 @@ module.exports = {
                 });
             };
 
+            azureComputeMock.virtualMachineScaleSetVMs = {
+                list: function(resourceGroup, scaleSetName, cb) {
+                    cb(
+                        null,
+                        [
+                            {
+                                instanceId: '123',
+                                provisioningState: 'Succeeded',
+                                id: 'instance/123'
+                            },
+                            {
+                                instanceId: '456',
+                                provisioningState: 'Succeeded',
+                                id: 'instance/456'
+                            }
+                        ]
+                    );
+                }
+            };
+
             azureNetworkMock.networkInterfaces = {
                 listVirtualMachineScaleSetNetworkInterfaces: function(resourceGroup, scaleSet, cb) {
                     cb(null, {
                         '123': {
+                            virtualMachine: {
+                                id: 'instance/123'
+                            },
                             ipConfigurations: [
                                 {
                                     privateIPAddress: '5.6.7.8'
@@ -304,6 +290,9 @@ module.exports = {
                             ]
                         },
                         '456': {
+                            virtualMachine: {
+                                id: 'instance/456'
+                            },
                             ipConfigurations: [
                                 {
                                     privateIPAddress: '7.8.9.0'
@@ -314,7 +303,13 @@ module.exports = {
                 }
             };
 
+            azureStorageMock.listBlobsSegmented = function(container, token, options, cb) {
+                cb(null, {entries: []});
+            };
+
+            provider.computeClient = azureComputeMock;
             provider.networkClient = azureNetworkMock;
+            provider.storageClient = azureStorageMock;
 
             callback();
         },
@@ -328,12 +323,134 @@ module.exports = {
                         '123': {
                             mgmtIp: '5.6.7.8',
                             privateIp: '5.6.7.8',
-                            hostname: '5.6.7.8_myHostname'
+                            hostname: '5.6.7.8_myHostname',
+                            providerVisible: true
                         },
                         '456': {
                             mgmtIp: '7.8.9.0',
                             privateIp: '7.8.9.0',
-                            hostname: '7.8.9.0_myHostname'
+                            hostname: '7.8.9.0_myHostname',
+                            providerVisible: true
+                        }
+                    });
+                })
+                .catch(function(err) {
+                    test.ok(false, err);
+                })
+                .finally(function() {
+                    test.done();
+                });        },
+
+        testInstancesInDb: function(test) {
+            azureStorageMock.listBlobsSegmented = function(container, token, options, cb) {
+                cb(null,
+                    {
+                        entries: [
+                            {
+                                name: "123"
+                            },
+                            {
+                                name: "456"
+                            }
+                        ]
+                    }
+                );
+            };
+
+            azureStorageMock.getBlobToText = function(container, name, cb) {
+                var instance;
+
+                switch (name) {
+                    case '123':
+                        instance = {
+                            isMaster: true,
+                            mgmtIp: '5.6.7.8',
+                            privateIp: '5.6.7.8',
+                            hostname: '5.6.7.8_myHostname',
+                            providerVisible: true,
+                            masterStatus: {}
+                        };
+                        break;
+                    case '456':
+                    instance = {
+                        isMaster: false,
+                        mgmtIp: '7.8.9.0',
+                        privateIp: '7.8.9.0',
+                        hostname: '7.8.9.0_myHostname',
+                        providerVisible: true,
+                        masterStatus: {}
+                    };
+                    break;
+                }
+                cb(null, JSON.stringify(instance));
+            };
+
+            test.expect(1);
+            provider.getInstances()
+                .then(function(instances) {
+                    test.deepEqual(instances, {
+                        '123': {
+                            mgmtIp: '5.6.7.8',
+                            privateIp: '5.6.7.8',
+                            hostname: '5.6.7.8_myHostname',
+                            providerVisible: true,
+                            isMaster: true,
+                            masterStatus: {}
+                        },
+                        '456': {
+                            mgmtIp: '7.8.9.0',
+                            privateIp: '7.8.9.0',
+                            hostname: '7.8.9.0_myHostname',
+                            providerVisible: true,
+                            isMaster: false,
+                            masterStatus: {}
+                        }
+                    });
+                })
+                .catch(function(err) {
+                    test.ok(false, err);
+                })
+                .finally(function() {
+                    test.done();
+                });
+        },
+
+        testNotProviderVisible: function(test) {
+            azureComputeMock.virtualMachineScaleSetVMs = {
+                list: function(resourceGroup, scaleSetName, cb) {
+                    cb(
+                        null,
+                        [
+                            {
+                                instanceId: '123',
+                                provisioningState: 'Failed',
+                                id: 'instance/123'
+                            },
+                            {
+                                instanceId: '456',
+                                provisioningState: 'Succeeded',
+                                id: 'instance/456'
+                            }
+                        ]
+                    );
+                }
+            };
+
+            test.expect(1);
+            provider.getInstances()
+                .then(function(instances) {
+                    test.deepEqual(instances, {
+                        '123': {
+                            mgmtIp: '5.6.7.8',
+                            privateIp: '5.6.7.8',
+                            hostname: '5.6.7.8_myHostname',
+                            providerVisible: false
+                        },
+                        '456': {
+                            mgmtIp: '7.8.9.0',
+                            privateIp: '7.8.9.0',
+                            hostname: '7.8.9.0_myHostname',
+                            providerVisible: true
                         }
                     });
                 })
@@ -371,18 +488,74 @@ module.exports = {
                 '123': {
                     mgmtIp: '5.6.7.8',
                     privateIp: '5.6.7.8',
-                    hostname: '5.6.7.8_myHostname'
+                    hostname: '5.6.7.8_myHostname',
+                    providerVisible: true
                 },
                 '456': {
                     mgmtIp: '7.8.9.0',
                     privateIp: '7.8.9.0',
-                    hostname: '7.8.9.0_myHostname'
+                    hostname: '7.8.9.0_myHostname',
+                    providerVisible: true
                 }
             };
 
+            test.expect(1);
             provider.electMaster(instances)
                 .then(function(electedId) {
                     test.strictEqual(electedId, '123');
+                    test.done();
+                });
+        },
+
+        testLowestNotProviderVisible: function(test) {
+            var instances = {
+                '123': {
+                    mgmtIp: '5.6.7.8',
+                    privateIp: '5.6.7.8',
+                    hostname: '5.6.7.8_myHostname',
+                    providerVisible: false
+                },
+                '456': {
+                    mgmtIp: '7.8.9.0',
+                    privateIp: '7.8.9.0',
+                    hostname: '7.8.9.0_myHostname',
+                    providerVisible: true
+                }
+            };
+
+            test.expect(1);
+            provider.electMaster(instances)
+                .then(function(electedId) {
+                    test.strictEqual(electedId, '456');
+                    test.done();
+                });
+        },
+
+        testNoProviderVisible: function(test) {
+            var instances = {
+                '123': {
+                    mgmtIp: '5.6.7.8',
+                    privateIp: '5.6.7.8',
+                    hostname: '5.6.7.8_myHostname',
+                    providerVisible: false
+                },
+                '456': {
+                    mgmtIp: '7.8.9.0',
+                    privateIp: '7.8.9.0',
+                    hostname: '7.8.9.0_myHostname',
+                    providerVisible: false
+                }
+            };
+
+            test.expect(1);
+            provider.electMaster(instances)
+                .then(function() {
+                    test.ok(false, 'should have thrown no instances');
+                })
+                .catch(function(err) {
+                    test.strictEqual(err.message, 'No possible master found');
+                })
+                .finally(function() {
                     test.done();
                 });
         },
@@ -411,6 +584,8 @@ module.exports = {
         bigIpMock.user = user;
         bigIpMock.password = password;
         provider.bigIp = bigIpMock;
+
+        test.expect(1);
         provider.getMasterCredentials()
             .then(function(credentials) {
                 test.deepEqual(credentials, {
@@ -419,6 +594,68 @@ module.exports = {
                 });
                 test.done();
             });
+    },
+
+    testIsValidMaster: {
+        setUp: function(callback) {
+            bigIpMock.init = function() {
+                return q();
+            };
+
+            bigIpMock.prototype.list = function() {
+                return q(
+                    {
+                        hostname: 'foo'
+                    }
+                );
+            };
+
+            callback();
+        },
+
+        testValid: function(test) {
+            var instanceId = '123';
+            var instances = {
+                '123': {
+                    hostname: 'foo',
+                    privateIp: '1.2.3.4'
+                }
+            };
+
+            test.expect(1);
+            provider.isValidMaster(instanceId, instances)
+                .then(function(isValid) {
+                    test.strictEqual(isValid, true);
+                })
+                .catch(function(err) {
+                    test.ok(false, err);
+                })
+                .finally(function() {
+                    test.done();
+                });
+        },
+
+        testNotValid: function(test) {
+            var instanceId = '123';
+            var instances = {
+                '123': {
+                    hostname: 'bar',
+                    privateIp: '1.2.3.4'
+                }
+            };
+
+            test.expect(1);
+            provider.isValidMaster(instanceId, instances)
+                .then(function(isValid) {
+                    test.strictEqual(isValid, false);
+                })
+                .catch(function(err) {
+                    test.ok(false, err);
+                })
+                .finally(function() {
+                    test.done();
+                });
+        }
     },
 
     testGetStoredUcs: {
@@ -496,6 +733,46 @@ module.exports = {
                 })
                 .catch(function(err) {
                     test.strictEqual(err.message, errorMessage);
+                })
+                .finally(function() {
+                    test.done();
+                });
+        }
+    },
+
+    testPutInstance: {
+        setUp: function(callback) {
+            azureStorageMock.createBlockBlobFromText = function(container, name, data, cb) {
+                createBlobFromTextParams = {
+                    container: container,
+                    name: name,
+                    data: data
+                };
+                cb();
+            };
+            createBlobFromTextParams = undefined;
+
+            provider.storageClient = azureStorageMock;
+
+            callback();
+        },
+
+        testBasic: function(test) {
+            var instanceId = '123';
+            var instance = {
+                foo: 'bar'
+            };
+
+            test.expect(3);
+            provider.putInstance(instanceId, instance)
+                .then(function() {
+                    var putData = JSON.parse(createBlobFromTextParams.data);
+                    test.strictEqual(createBlobFromTextParams.name, instanceId);
+                    test.strictEqual(putData.foo, instance.foo);
+                    test.notStrictEqual(putData.lastUpdate, undefined);
+                })
+                .catch(function(err) {
+                    test.ok(false, err);
                 })
                 .finally(function() {
                     test.done();
