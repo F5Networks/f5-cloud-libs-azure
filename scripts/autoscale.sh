@@ -177,6 +177,7 @@ if [[ ! -z $app_insights_key ]]; then
         echo "Appears the $icall_handler_name icall already exists!"
     fi
 fi
+
 # Save TMSH Configuration
 tmsh save /sys config
 
@@ -186,4 +187,5 @@ else
     echo "AUTOSCALE INIT FAIL"
     exit 1
 fi
+
 exit
