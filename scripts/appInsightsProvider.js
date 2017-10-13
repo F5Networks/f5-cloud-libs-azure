@@ -46,7 +46,7 @@ var trafficMetricName = 'F5_TRAFFIC_TOTAL_BYTES';
 
 bigip.init(
     'localhost',
-    'admin',
+    'svc_user',
     'file:///config/cloud/.passwd',
     {
         passwordIsUrl: true,

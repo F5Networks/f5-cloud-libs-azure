@@ -58,7 +58,7 @@ var globalSettings = [];
 
 bigip.init(
     'localhost',
-    'admin',
+    'svc_user',
     'file:///config/cloud/.passwd',
     {
         passwordIsUrl: true,
