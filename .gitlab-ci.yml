@@ -3,11 +3,14 @@ image: node:4
 stages:
     - test
     - package
+    - notify
 
 test:
     tags:
         - docker-executor
     stage: test
+    except:
+        - triggers
     script:
         - npm install
         - npm test
@@ -19,11 +22,19 @@ package:
     only:
         - /^release-.*/
         - /^hf-.*/
-        - triggers
     script:
         - npm run package -- --no-deps
     artifacts:
-        name: f5-cloud-libs-azure-$CI_BUILD_REF
+        name: ${CI_PROJECT_NAME}-${CI_BUILD_REF}
         paths:
             - dist/
             - doc/
+
+notify:
+    tags:
+        - docker-executor
+    stage: notify
+    except:
+        - master
+    script:
+        - ./build/notifyProjects.sh
