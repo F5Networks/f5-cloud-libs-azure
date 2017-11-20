@@ -581,6 +581,7 @@ module.exports = {
         var user = 'roger';
         var password = 'dodger';
 
+        bigIpMock.isInitialized = true;
         bigIpMock.user = user;
         bigIpMock.password = password;
         provider.bigIp = bigIpMock;

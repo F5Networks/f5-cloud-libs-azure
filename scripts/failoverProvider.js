@@ -62,7 +62,8 @@ bigip.init(
     'file:///config/cloud/.passwd',
     {
         passwordIsUrl: true,
-        port: '443'
+        port: '443',
+        passwordEncrypted: true
     }
 )
 .then(function() {
