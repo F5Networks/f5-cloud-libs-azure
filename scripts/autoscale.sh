@@ -115,7 +115,7 @@ if [[ ! -z $big_iq_lic_host ]]; then
         instance_id=$(echo $instance | grep -E -o "_.{0,3}" | sed 's/_//;s/\"//g')
         jq -c .instanceId=$instance_id $azure_secret_file > tmp.$$.json && mv tmp.$$.json $azure_secret_file
         # Make Azure Rest API call to get frontend port
-        ext_port_via_api=$(/usr/bin/f5-rest-node --use-strict /config/cloud/azure/node_modules/f5-cloud-libs/node_modules/f5-cloud-libs-azure/scripts/scaleSetProvider.js)
+        ext_port_via_api=$(/usr/bin/f5-rest-node /config/cloud/azure/node_modules/f5-cloud-libs/node_modules/f5-cloud-libs-azure/scripts/scaleSetProvider.js)
         big_ip_ext_mgmt_port=$(echo $ext_port_via_api | grep 'Port Selected: ' | awk -F 'Selected: ' '{print $2}')
     fi
     echo "BIG-IP via BIG-IQ Info... IP: $big_ip_ext_mgmt_addr Port: $big_ip_ext_mgmt_port"
@@ -160,20 +160,36 @@ else
     echo "Appears the $icall_handler_name icall already exists!"
 fi
 
-# Create iCall to run Application Insights Provider code if customer requested
+# Create iCall to run Application Insights Provider code if so chosen in the template
 if [[ ! -z $app_insights_key ]]; then
     icall_handler_name="MetricsCollectorHandler"
     tmsh list sys icall handler | grep $icall_handler_name
     if [[ $? != 0 ]]; then
         tmsh create sys icall script MetricsCollector definition { exec f5-rest-node /config/cloud/azure/node_modules/f5-cloud-libs/node_modules/f5-cloud-libs-azure/scripts/appInsightsProvider.js --key $app_insights_key --log-level info }
         tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence now interval 60 script /Common/MetricsCollector }
-        # Need to replace this with a check to determine when the custom Application Insights metric
-        # just created (possibly) is available for consumption by VM Scale sets - Appears to be between 90-180 seconds
-        # Could potentially use Application Insights API (beta) which requires creation of an API key to query
+        # Check to determine when the custom Application Insights metric just created (possibly)
+        # is available for consumption by VM Scale sets
         if [ -f /config/cloud/master ]; then
-            sleep 210
+            api_key_create=$(/usr/bin/f5-rest-node /config/cloud/azure/node_modules/f5-cloud-libs/node_modules/f5-cloud-libs-azure/scripts/appInsightsApiKeyProvider.js --key-operation create)
+            api_key=$(echo "$api_key_create" | grep 'API Key: ' | awk -F 'Key: ' '{print $2}')
+            api_key_id=$(echo "$api_key_create" | grep 'API Key ID: ' | awk -F 'ID: ' '{print $2}')
+            app_insights_id=$(echo "$api_key_create" | grep 'App Insights ID: ' | awk -F 'ID: ' '{print $2}')
+            # Check if metric exists in a while loop (will continue after ctr * while loop)
+            metric='F5_TMM_CPU'
+            ctr=0
+            while [ $ctr -lt 25 ]; do
+                metric_check=$(curl --silent "https://api.applicationinsights.io/beta/apps/$app_insights_id/metrics/customMetrics%2F$metric" -H "x-api-key: $api_key")
+                echo "DEBUG -- CTR: $ctr Response: $metric_check"
+                if [[ echo $metric_check | jq '.value' == *"null"* ]]; then
+                    # Keep trying
+                    ctr=$(($ctr+1))
+                    sleep 10
+                fi
+                # Metric Exists
+                echo "Metric Created: $metric Metric Check Response: $metric_check"
+                break
+            done
         fi
-
     else
         echo "Appears the $icall_handler_name icall already exists!"
     fi

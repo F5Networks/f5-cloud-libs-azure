@@ -28,6 +28,7 @@ var tenantId = credentialsFile.tenantId;
 var secret = credentialsFile.secret;
 var resourceGroupName = credentialsFile.resourceGroupName;
 var appInsightsResourceName = credentialsFile.appInsightsName;
+var appInsightsId = credentialsFile.appInsightsId;
 
  /**
  * Grab command line arguments
@@ -46,6 +47,7 @@ var logger = Logger.getLogger({logLevel: options.logLevel, fileName: '/var/log/a
 var credentials = new msRestAzure.ApplicationTokenCredentials(clientId, tenantId, secret);
 var client = new appInsights(credentials, subscriptionId);
 
+logger.info('App Insights ID: ' + appInsightsId);
 
 if ( options.keyOperation == "create" ) {
     /**
@@ -113,3 +115,4 @@ if ( options.logLevel == "debug" || options.logLevel == "silly" ) {
     logger.info(err);
     });
 }
+
