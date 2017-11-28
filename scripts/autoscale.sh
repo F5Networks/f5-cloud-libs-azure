@@ -184,10 +184,11 @@ if [[ ! -z $app_insights_key ]]; then
                     # Keep trying
                     ctr=$(($ctr+1))
                     sleep 10
+                else
+                    # Metric Exists
+                    echo "Metric Created: $metric Metric Check Response: $metric_check"
+                    break
                 fi
-                # Metric Exists
-                echo "Metric Created: $metric Metric Check Response: $metric_check"
-                break
             done
         fi
     else
