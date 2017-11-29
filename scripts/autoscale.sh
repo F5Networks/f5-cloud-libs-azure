@@ -180,7 +180,7 @@ if [[ ! -z $app_insights_key ]]; then
             while [ $ctr -lt 25 ]; do
                 metric_check=$(curl --silent "https://api.applicationinsights.io/beta/apps/$app_insights_id/metrics/customMetrics%2F$metric" -H "x-api-key: $api_key")
                 echo "DEBUG -- CTR: $ctr Response: $metric_check"
-                if [[ echo $metric_check | jq '.value' == *"null"* ]]; then
+                if [[ `echo $metric_check | jq '.value'` == *"null"* ]]; then
                     # Keep trying
                     ctr=$(($ctr+1))
                     sleep 10
