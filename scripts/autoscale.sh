@@ -128,7 +128,7 @@ fi
 
 if [ -f /config/cloud/master ]; then
     echo 'SELF-SELECTED as Master ... Initiating Autoscale Cluster'
-    # UCS Loaded?
+    # Check if UCS is loaded
     ucs_loaded=$(cat /config/cloud/master | jq .ucsLoaded)
     echo "UCS Loaded: $ucs_loaded"
 
@@ -145,7 +145,7 @@ if [ -f /config/cloud/master ]; then
     fi
 fi
 
-# Create iCall, first check if it already exists
+# Create Cluster Update iCall, first check if it already exists
 icall_handler_name="ClusterUpdateHandler"
 tmsh list sys icall handler | grep $icall_handler_name
 if [[ $? != 0 ]]; then
@@ -174,10 +174,10 @@ if [[ ! -z $app_insights_key ]]; then
             api_key=$(echo "$api_key_create" | grep 'API Key: ' | awk -F 'Key: ' '{print $2}')
             api_key_id=$(echo "$api_key_create" | grep 'API Key ID: ' | awk -F 'ID: ' '{print $2}')
             app_insights_id=$(echo "$api_key_create" | grep 'App Insights ID: ' | awk -F 'ID: ' '{print $2}')
-            # Check if metric exists in a while loop (will continue after ctr * while loop)
+            # Check if metric exists in a while loop (will continue at expiration of ctr * while loop)
             metric='F5_TMM_CPU'
             ctr=0
-            while [ $ctr -lt 25 ]; do
+            while [ $ctr -lt 30 ]; do
                 metric_check=$(curl --silent "https://api.applicationinsights.io/beta/apps/$app_insights_id/metrics/customMetrics%2F$metric" -H "x-api-key: $api_key")
                 echo "DEBUG -- CTR: $ctr Response: $metric_check"
                 if [[ `echo $metric_check | jq '.value'` == *"null"* ]]; then
@@ -187,6 +187,9 @@ if [[ ! -z $app_insights_key ]]; then
                 else
                     # Metric Exists
                     echo "Metric Created: $metric Metric Check Response: $metric_check"
+                    # Delete API Key
+                    echo "Deleting API Key: $api_key_id"
+                    /usr/bin/f5-rest-node /config/cloud/azure/node_modules/f5-cloud-libs/node_modules/f5-cloud-libs-azure/scripts/appInsightsApiKeyProvider.js --key-operation delete --key-id $api_key_id
                     break
                 fi
             done
