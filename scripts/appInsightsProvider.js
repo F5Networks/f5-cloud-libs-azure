@@ -41,7 +41,7 @@ appInsights.setup(options.key);
 var client = appInsights.client;
 
 var cpuMetricName = 'F5_TMM_CPU';
-var trafficMetricName = 'F5_TRAFFIC_TOTAL_BYTES';
+var trafficMetricName = 'F5_TMM_TRAFFIC';
 
 
 bigip.init(
