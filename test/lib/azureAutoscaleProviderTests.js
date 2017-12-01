@@ -164,6 +164,20 @@ module.exports = {
                             }
                         ]
                     );
+                },
+                getInstanceView: function(resourceGroup, scaleSetName, instanceId, cb) {
+                    cb(
+                        null,
+                        {
+                            instanceId: instanceId,
+                            statuses: [
+                                {
+                                    "code": "PowerState/running",
+                                    "displayStatus": "VM running"
+                                }                              
+                            ],
+                        }
+                    );
                 }
             };
 
@@ -272,6 +286,20 @@ module.exports = {
                                 id: 'instance/456'
                             }
                         ]
+                    );
+                },
+                getInstanceView: function(resourceGroup, scaleSetName, instanceId, cb) {
+                    cb(
+                        null,
+                        {
+                            instanceId: instanceId,
+                            statuses: [
+                                {
+                                    "code": "PowerState/running",
+                                    "displayStatus": "VM running"
+                                }                              
+                            ],
+                        }
                     );
                 }
             };
@@ -415,7 +443,7 @@ module.exports = {
                 });
         },
 
-        testNotProviderVisible: function(test) {
+        testNotProviderVisibleProvisioningState: function(test) {
             azureComputeMock.virtualMachineScaleSetVMs = {
                 list: function(resourceGroup, scaleSetName, cb) {
                     cb(
@@ -433,6 +461,20 @@ module.exports = {
                             }
                         ]
                     );
+                },
+                getInstanceView: function(resourceGroup, scaleSetName, instanceId, cb) {
+                    cb(
+                        null,
+                        {
+                            instanceId: instanceId,
+                            statuses: [
+                                {
+                                    "code": "PowerState/running",
+                                    "displayStatus": "VM running"
+                                }                              
+                            ],
+                        }
+                    );
                 }
             };
 
@@ -445,6 +487,121 @@ module.exports = {
                             privateIp: '5.6.7.8',
                             hostname: '5.6.7.8_myHostname',
                             providerVisible: false
+                        },
+                        '456': {
+                            mgmtIp: '7.8.9.0',
+                            privateIp: '7.8.9.0',
+                            hostname: '7.8.9.0_myHostname',
+                            providerVisible: true
+                        }
+                    });
+                })
+                .catch(function(err) {
+                    test.ok(false, err);
+                })
+                .finally(function() {
+                    test.done();
+                });
+        },
+
+        testNotProviderVisiblePowerState: function(test) {
+            azureComputeMock.virtualMachineScaleSetVMs = {
+                list: function(resourceGroup, scaleSetName, cb) {
+                    cb(
+                        null,
+                        [
+                            {
+                                instanceId: '123',
+                                provisioningState: 'Succeeded',
+                                id: 'instance/123'
+                            },
+                            {
+                                instanceId: '456',
+                                provisioningState: 'Succeeded',
+                                id: 'instance/456'
+                            }
+                        ]
+                    );
+                },
+                getInstanceView: function(resourceGroup, scaleSetName, instanceId, cb) {
+                    var powerState = 'running';
+                    if ( instanceId === '456' ) {
+                        powerState = 'deallocated';
+                    }
+                    cb(
+                        null,
+                        {
+                            instanceId: instanceId,
+                            statuses: [
+                                {
+                                    "code": "PowerState/" + powerState,
+                                    "displayStatus": "VM " + powerState
+                                }                              
+                            ],
+                        }
+                    );
+                }
+            };
+
+            test.expect(1);
+            provider.getInstances()
+                .then(function(instances) {
+                    test.deepEqual(instances, {
+                        '123': {
+                            mgmtIp: '5.6.7.8',
+                            privateIp: '5.6.7.8',
+                            hostname: '5.6.7.8_myHostname',
+                            providerVisible: true
+                        },
+                        '456': {
+                            mgmtIp: '7.8.9.0',
+                            privateIp: '7.8.9.0',
+                            hostname: '7.8.9.0_myHostname',
+                            providerVisible: false
+                        }
+                    });
+                })
+                .catch(function(err) {
+                    test.ok(false, err);
+                })
+                .finally(function() {
+                    test.done();
+                });
+        },
+
+        testNotProviderVisiblePowerStateFunctionError: function(test) {
+            azureComputeMock.virtualMachineScaleSetVMs = {
+                list: function(resourceGroup, scaleSetName, cb) {
+                    cb(
+                        null,
+                        [
+                            {
+                                instanceId: '123',
+                                provisioningState: 'Succeeded',
+                                id: 'instance/123'
+                            },
+                            {
+                                instanceId: '456',
+                                provisioningState: 'Succeeded',
+                                id: 'instance/456'
+                            }
+                        ]
+                    );
+                },
+                getInstanceView: function(resourceGroup, scaleSetName, instanceId, cb) {
+                    cb('some error', []);
+                }
+            };
+
+            test.expect(1);
+            provider.getInstances()
+                .then(function(instances) {
+                    test.deepEqual(instances, {
+                        '123': {
+                            mgmtIp: '5.6.7.8',
+                            privateIp: '5.6.7.8',
+                            hostname: '5.6.7.8_myHostname',
+                            providerVisible: true
                         },
                         '456': {
                             mgmtIp: '7.8.9.0',
