@@ -20,7 +20,7 @@ var subscriptionId = credentialsFile.subscriptionId;
 var clientId = credentialsFile.clientId;
 var tenantId = credentialsFile.tenantId;
 var secret = credentialsFile.secret;
-var resourceGroup = credentialsFile.resourceGroup;
+var resourceGroup = credentialsFile.resourceGroupName;
 
 var msRestAzure = require('ms-rest-azure');
 var credentials = new msRestAzure.ApplicationTokenCredentials(clientId, tenantId, secret);

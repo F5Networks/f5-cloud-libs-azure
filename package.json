@@ -15,6 +15,7 @@
     "ms-rest-azure": "^1.15.0",
     "applicationinsights": "^0.21.0",
     "azure-arm-appinsights": "^1.1.0-preview",
+    "request": "^2.83.0",
     "q": "^1.4.1"
   },
   "devDependencies": {
