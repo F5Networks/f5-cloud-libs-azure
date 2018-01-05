@@ -1,5 +1,8 @@
-# Auto detect text files and perform LF normalization
+# Use lf for text files
 * text eol=lf
+
+# Binary files
+*.tar.gz binary
 
 # Custom for Visual Studio
 *.cs     diff=csharp
