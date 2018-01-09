@@ -87,11 +87,11 @@ done
 echo "SELF IP CHOSEN: $self_ip"
 
 # Add missing metadata route on mgmt plane if v13.x
-if tmsh show sys version | grep '13.'; then
+if tmsh show sys version | grep '13\.'; then
     dfl_gw=$(tmsh list net route default | grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}')
     # Just in case default route does not exist yet continue to wait for it to be created
     count=0
-    while [ $count -lt 5 ]; do
+    while [ $count -lt 10 ]; do
         if [[ -z $dfl_gw ]]; then
             sleep 5
             dfl_gw=$(tmsh list net route default | grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}')
@@ -219,3 +219,4 @@ else
 fi
 
 exit
+
