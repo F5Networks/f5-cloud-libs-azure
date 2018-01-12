@@ -55,6 +55,10 @@ bigip.init(
     }
 )
 .then(function() {
+    logger.info("Waiting for BIG-IP to be ready.");
+    return bigip.ready();
+})
+.then(function() {
     Promise.all([
         bigip.list('/tm/sys/tmm-info/stats'),
         bigip.list('/tm/sys/traffic/stats'),
