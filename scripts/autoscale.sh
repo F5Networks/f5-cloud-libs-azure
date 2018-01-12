@@ -102,6 +102,11 @@ if tmsh show sys version | grep '13\.'; then
     route add 169.254.169.254 gw $dfl_gw internal
 fi
 
+# Execute Application Insights Provider early to allow custom metrics to begin appearing
+if [[ ! -z $app_insights_key ]]; then
+    f5-rest-node /config/cloud/azure/node_modules/f5-cloud-libs/node_modules/f5-cloud-libs-azure/scripts/appInsightsProvider.js --key $app_insights_key --log-level info
+fi
+
 # Add check/loop in case metadata service does not respond right away
 count=0
 while [ $count -lt 5 ]; do
@@ -217,6 +222,5 @@ else
     echo "AUTOSCALE INIT FAIL"
     exit 1
 fi
-
+# Exit autoscale script
 exit
-
