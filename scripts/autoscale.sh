@@ -102,11 +102,6 @@ if tmsh show sys version | grep '13\.'; then
     route add 169.254.169.254 gw $dfl_gw internal
 fi
 
-# Execute Application Insights Provider early to allow custom metrics to begin appearing
-if [[ ! -z $app_insights_key ]]; then
-    /usr/bin/f5-rest-node /config/cloud/azure/node_modules/f5-cloud-libs/node_modules/f5-cloud-libs-azure/scripts/appInsightsProvider.js --key $app_insights_key --log-level info
-fi
-
 # Add check/loop in case metadata service does not respond right away
 count=0
 while [ $count -lt 5 ]; do
@@ -118,6 +113,11 @@ while [ $count -lt 5 ]; do
     count=$(( $count + 1 ))
 done
 echo "INSTANCE NAME CHOSEN: $instance"
+
+# Execute Application Insights Provider early to allow custom metrics to begin appearing
+if [[ ! -z $app_insights_key ]]; then
+    /usr/bin/f5-rest-node /config/cloud/azure/node_modules/f5-cloud-libs/node_modules/f5-cloud-libs-azure/scripts/appInsightsProvider.js --key $app_insights_key --log-level info
+fi
 
 # Check if PAYG or BYOL (via BIG-IQ)
 if [[ ! -z $big_iq_lic_host ]]; then
