@@ -2,7 +2,7 @@
 
 var LogLevel = 'info';
 var Logger = require('f5-cloud-libs').logger;
-var logger = Logger.getLogger({logLevel: LogLevel, fileName: '/var/tmp/azureScaleSet.log'});
+var logger = Logger.getLogger({logLevel: LogLevel, fileName: '/var/log/cloud/azure/azureScaleSet.log'});
 
 var util = require('f5-cloud-libs').util;
 var fs = require('fs');

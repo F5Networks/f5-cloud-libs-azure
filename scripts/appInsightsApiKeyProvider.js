@@ -42,7 +42,7 @@ options
     .parse(process.argv);
 
 var Logger = require('f5-cloud-libs').logger;
-var logger = Logger.getLogger({logLevel: options.logLevel, fileName: '/var/log/appInsightsApiKey.log'});
+var logger = Logger.getLogger({logLevel: options.logLevel, fileName: '/var/log/cloud/azure/appInsightsApiKey.log'});
 
 var credentials = new msRestAzure.ApplicationTokenCredentials(clientId, tenantId, secret);
 var client = new appInsights(credentials, subscriptionId);
