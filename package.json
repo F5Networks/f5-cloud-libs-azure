@@ -1,6 +1,6 @@
 {
   "name": "f5-cloud-libs-azure",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Azure implementation of f5-cloud-libs autoscale code",
   "main": "index.js",
   "repository": {
