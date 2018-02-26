@@ -3,36 +3,24 @@
 /**
  * This provider is designed to be used to manage certain application insights
  * objects, such as creation of an API key
- * 
+ *
  * Requires the Application Insights management SDK - Listed Below
  * https://www.npmjs.com/package/azure-arm-appinsights
- * 
+ *
  */
 
-var options = require('commander');
-var fs = require('fs');
-var msRestAzure = require('ms-rest-azure');
-var appInsights = require("azure-arm-appinsights");
+'use strict';
 
-if (fs.existsSync('/config/cloud/.azCredentials')) {
-    var credentialsFile = JSON.parse(fs.readFileSync('/config/cloud/.azCredentials', 'utf8'));
-}
-else {
-    logger.error('Credentials file not found');
-    return;
-}
+const options = require('commander');
+const fs = require('fs');
+const q = require('q');
+const msRestAzure = require('ms-rest-azure');
+const AppInsights = require('azure-arm-appinsights');
+const Logger = require('@f5devcentral/f5-cloud-libs').logger;
 
-var subscriptionId = credentialsFile.subscriptionId;
-var clientId = credentialsFile.clientId;
-var tenantId = credentialsFile.tenantId;
-var secret = credentialsFile.secret;
-var resourceGroupName = credentialsFile.resourceGroupName;
-var appInsightsResourceName = credentialsFile.appInsightsName;
-var appInsightsId = credentialsFile.appInsightsId;
-
- /**
+/**
  * Grab command line arguments
- */
+*/
 options
     .version('1.0.0')
 
@@ -41,53 +29,73 @@ options
     .option('--log-level [type]', 'Specify the Log Level', 'info')
     .parse(process.argv);
 
-var Logger = require('f5-cloud-libs').logger;
-var logger = Logger.getLogger({logLevel: options.logLevel, fileName: '/var/log/cloud/azure/appInsightsApiKey.log'});
+const logFile = '/var/log/cloud/azure/appInsightsApiKey.log';
+const loggerOptions = { logLevel: options.logLevel, fileName: logFile, console: true };
+const logger = Logger.getLogger(loggerOptions);
 
-var credentials = new msRestAzure.ApplicationTokenCredentials(clientId, tenantId, secret);
-var client = new appInsights(credentials, subscriptionId);
+let credentialsFile;
+if (fs.existsSync('/config/cloud/.azCredentials')) {
+    credentialsFile = JSON.parse(fs.readFileSync('/config/cloud/.azCredentials', 'utf8'));
+} else {
+    logger.error('Credentials file not found');
+    return;
+}
+
+const subscriptionId = credentialsFile.subscriptionId;
+const clientId = credentialsFile.clientId;
+const tenantId = credentialsFile.tenantId;
+const secret = credentialsFile.secret;
+const resourceGroupName = credentialsFile.resourceGroupName;
+const appInsightsResourceName = credentialsFile.appInsightsName;
+const appInsightsId = credentialsFile.appInsightsId;
+
+
+const credentials = new msRestAzure.ApplicationTokenCredentials(clientId, tenantId, secret);
+const client = new AppInsights(credentials, subscriptionId);
 
 logger.info('App Insights ID:', appInsightsId);
 
 /**
  * Check if operation is create, delete or list and act accordingly
  */
-if ( options.keyOperation == "create" ) {
+if (options.keyOperation === 'create') {
     Promise.all([
         createAppInsightApiKey(resourceGroupName, appInsightsResourceName)
     ])
-    .then((results) => {
-        logger.debug('List Response:', results[0]);
-        logger.info('API Key Name:', results[0].name);
-        logger.info('API Key ID:', results[0].id.split('/apikeys/')[1]);
-        logger.info('API Key:', results[0].apiKey);
-    })
-    .catch(err => {
-        logger.error('Error:', err);
-    });
-} else if ( options.keyOperation == "delete" ) {
+        .then((results) => {
+            const response = results[0];
+            response.appInsightsId = appInsightsId;
+            logger.info('Response:', response);
+            logger.debug('API Key Name:', response.name);
+            logger.debug('API Key ID:', response.id.split('/apikeys/')[1]);
+            logger.debug('API Key:', response.apiKey);
+        })
+        .catch((err) => {
+            logger.error('Error:', err);
+        });
+} else if (options.keyOperation === 'delete') {
     Promise.all([
         deleteAppInsightApiKey(resourceGroupName, appInsightsResourceName, options.keyId)
     ])
-    .then((results) => {
-        logger.info('Delete Response:', results[0]);
-    })
-    .catch(err => {
-        logger.error('Error:', err);
-    });
+        .then((results) => {
+            logger.info('Delete Response:', results[0]);
+        })
+        .catch((err) => {
+            logger.error('Error:', err);
+        });
 }
-if ( options.keyOperation == "list" || options.logLevel == "debug" || options.logLevel == "silly" ) {
+if (options.keyOperation === 'list' || options.logLevel === 'debug' || options.logLevel === 'silly') {
     Promise.all([
         listAppInsightInstances(),
         listAppInsightApiKeys(resourceGroupName, appInsightsResourceName)
     ])
-    .then((results) => {
-        logger.info('List of App Insight components:', results[0]);
-        logger.info('List of API keys:', results[1]);
-    })
-    .catch(err => {
-        logger.error('Error:', err);
-    });
+        .then((results) => {
+            logger.info('List of App Insight components:', results[0]);
+            logger.info('List of API keys:', results[1]);
+        })
+        .catch((err) => {
+            logger.error('Error:', err);
+        });
 }
 
 /**
@@ -96,55 +104,49 @@ if ( options.keyOperation == "list" || options.logLevel == "debug" || options.lo
 * @returns {Promise}
 */
 function createAppInsightApiKey(rgName, resourceName) {
-    var date = Date.now();
-    var apiKeyProperties = {};
-    apiKeyProperties.name = 'apikeysdk' + date;
+    const date = Date.now();
+    const apiKeyProperties = {};
+    apiKeyProperties.name = `apikeysdk${date}`;
 
-    var basePropertiesUri = '/subscriptions/' + subscriptionId + '/resourceGroups/' + resourceGroupName + '/providers/microsoft.insights/components/' + appInsightsResourceName;
-    apiKeyProperties.linkedReadProperties = [ basePropertiesUri + '/api',
-        basePropertiesUri + '/draft',
-        basePropertiesUri + '/extendqueries',
-        basePropertiesUri + '/search',
-        basePropertiesUri + '/aggregate'];
+    const basePropertiesUri = `/subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}`
+        + `/providers/microsoft.insights/components/${appInsightsResourceName}`;
+    apiKeyProperties.linkedReadProperties = [`${basePropertiesUri}/api`,
+        `${basePropertiesUri}/draft`,
+        `${basePropertiesUri}/extendqueries`,
+        `${basePropertiesUri}/search`,
+        `${basePropertiesUri}/aggregate`];
 
-    return new Promise(
-    function (resolve, reject) {
-        client.aPIKeys.create(rgName, resourceName, apiKeyProperties,
-        (err, data) => {
-            if (err) {
-                logger.error('An error ocurred', err);
-                reject(err);
-            }
-            else {
-                resolve(data);
-            }
-        });
+    const deferred = q.defer();
+    client.aPIKeys.create(rgName, resourceName, apiKeyProperties, (err, data) => {
+        if (err) {
+            logger.error('An error ocurred', err);
+            deferred.reject(err);
+        } else {
+            deferred.resolve(data);
+        }
     });
+    return deferred.promise;
 }
-
 /**
 * Delete App Insights API Key
 *
 * @returns {Promise}
 */
 function deleteAppInsightApiKey(rgName, resourceName, keyId) {
-    if ( keyId === null || keyId === undefined ) {
+    if (keyId === null || keyId === undefined) {
         throw new Error('keyId cannot be null or undefined when delete has been specified');
     }
 
-    return new Promise(
-    function (resolve, reject) {
-        client.aPIKeys.deleteMethod(rgName, resourceName, keyId,
-        (err, data) => {
-            if (err) {
-                logger.error('An error ocurred', err);
-                reject(err);
-            }
-            else {
-                resolve(data);
-            }
-        });
+    const deferred = q.defer();
+    client.aPIKeys.deleteMethod(rgName, resourceName, keyId, (err, data) => {
+        if (err) {
+            logger.error('An error ocurred', err);
+            deferred.reject(err);
+        } else {
+            deferred.resolve(data);
+        }
     });
+    return deferred.promise;
 }
 
 /**
@@ -153,19 +155,17 @@ function deleteAppInsightApiKey(rgName, resourceName, keyId) {
 * @returns {Promise}
 */
 function listAppInsightInstances() {
-    return new Promise(
-    function (resolve, reject) {
-        client.components.list(
-        (err, data) => {
-            if (err) {
-                logger.error('An error ocurred', err);
-                reject(err);
-            }
-            else {
-                resolve(data);
-            }
-        });
+    const deferred = q.defer();
+
+    client.components.list((err, data) => {
+        if (err) {
+            logger.error('An error ocurred', err);
+            deferred.reject(err);
+        } else {
+            deferred.resolve(data);
+        }
     });
+    return deferred.promise;
 }
 
 /**
@@ -174,17 +174,15 @@ function listAppInsightInstances() {
 * @returns {Promise}
 */
 function listAppInsightApiKeys(rgName, resourceName) {
-    return new Promise(
-    function (resolve, reject) {
-        client.aPIKeys.list(rgName, resourceName,
-        (err, data) => {
-            if (err) {
-                logger.error('An error ocurred', err);
-                reject(err);
-            }
-            else {
-                resolve(data);
-            }
-        });
+    const deferred = q.defer();
+
+    client.aPIKeys.list(rgName, resourceName, (err, data) => {
+        if (err) {
+            logger.error('An error ocurred', err);
+            deferred.reject(err);
+        } else {
+            deferred.resolve(data);
+        }
     });
+    return deferred.promise;
 }

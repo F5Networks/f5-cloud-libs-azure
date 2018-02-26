@@ -2,10 +2,10 @@
 /*jshint loopfunc:true */
 
 var LogLevel = 'info';
-var Logger = require('f5-cloud-libs').logger;
+var Logger = require('@f5devcentral/f5-cloud-libs').logger;
 var logger = Logger.getLogger({logLevel: LogLevel, fileName: '/var/log/cloud/azure/azureFailover.log'});
 
-var util = require('f5-cloud-libs').util;
+var util = require('@f5devcentral/f5-cloud-libs').util;
 var fs = require('fs');
 
 if (fs.existsSync('/config/cloud/.azCredentials')) {
@@ -50,7 +50,7 @@ var selfIpConfigName = '-self-ipconfig';
 
 var BigIp;
 var bigip;
-BigIp = require('f5-cloud-libs').bigIp;
+BigIp = require('@f5devcentral/f5-cloud-libs').bigIp;
 bigip = new BigIp({logger: logger});
 
 var tgStats = [];
