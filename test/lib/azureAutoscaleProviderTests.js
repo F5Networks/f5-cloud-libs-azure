@@ -46,12 +46,12 @@ process.setMaxListeners(0);
 module.exports = {
     setUp(callback) {
         /* eslint-disable import/no-extraneous-dependencies, import/no-unresolved, global-require */
-        utilMock = require('f5-cloud-libs').util;
+        utilMock = require('@f5devcentral/f5-cloud-libs').util;
         azureMock = require('ms-rest-azure');
         azureNetworkMock = require('azure-arm-network');
         azureStorageMock = require('azure-storage');
         azureComputeMock = require('azure-arm-compute');
-        bigIpMock = require('f5-cloud-libs').bigIp;
+        bigIpMock = require('@f5devcentral/f5-cloud-libs').bigIp;
 
         AzureAutoscaleProvider = require('../../lib/azureAutoscaleProvider');
         /* eslint-enable import/no-extraneous-dependencies, import/no-unresolved, global-require */
