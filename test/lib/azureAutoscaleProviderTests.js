@@ -21,6 +21,8 @@ require('module').Module._initPaths(); // eslint-disable-line no-underscore-dang
 
 const q = require('q');
 
+const AutoscaleInstance = require('@f5devcentral/f5-cloud-libs').autoscaleInstance;
+
 const clientId = 'myClientId';
 const secret = 'mySecret';
 const tenantId = 'myTenantId';
@@ -405,13 +407,26 @@ module.exports = {
                             privateIp: '5.6.7.8',
                             publicIp: '123.456.789.1',
                             hostname: '5.6.7.8_myHostname',
-                            providerVisible: true
+                            providerVisible: true,
+                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
+                            version: undefined,
+                            isMaster: false,
+                            external: false,
+                            lastBackup: new Date(1970, 1, 1).getTime(),
+                            versionOk: true
                         },
                         456: {
                             mgmtIp: '7.8.9.0',
                             privateIp: '7.8.9.0',
+                            publicIp: undefined,
                             hostname: '7.8.9.0_myHostname',
-                            providerVisible: true
+                            providerVisible: true,
+                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
+                            version: undefined,
+                            isMaster: false,
+                            external: false,
+                            lastBackup: new Date(1970, 1, 1).getTime(),
+                            versionOk: true
                         }
                     });
                 })
@@ -544,13 +559,26 @@ module.exports = {
                             privateIp: '5.6.7.8',
                             publicIp: '123.456.789.1',
                             hostname: '5.6.7.8_myHostname',
-                            providerVisible: false
+                            providerVisible: false,
+                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
+                            version: undefined,
+                            isMaster: false,
+                            external: false,
+                            lastBackup: new Date(1970, 1, 1).getTime(),
+                            versionOk: true
                         },
                         456: {
                             mgmtIp: '7.8.9.0',
                             privateIp: '7.8.9.0',
+                            publicIp: undefined,
                             hostname: '7.8.9.0_myHostname',
-                            providerVisible: true
+                            providerVisible: true,
+                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
+                            version: undefined,
+                            isMaster: false,
+                            external: false,
+                            lastBackup: new Date(1970, 1, 1).getTime(),
+                            versionOk: true
                         }
                     });
                 })
@@ -610,13 +638,26 @@ module.exports = {
                             privateIp: '5.6.7.8',
                             publicIp: '123.456.789.1',
                             hostname: '5.6.7.8_myHostname',
-                            providerVisible: true
+                            providerVisible: true,
+                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
+                            version: undefined,
+                            isMaster: false,
+                            external: false,
+                            lastBackup: new Date(1970, 1, 1).getTime(),
+                            versionOk: true
                         },
                         456: {
                             mgmtIp: '7.8.9.0',
                             privateIp: '7.8.9.0',
+                            publicIp: undefined,
                             hostname: '7.8.9.0_myHostname',
-                            providerVisible: false
+                            providerVisible: false,
+                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
+                            version: undefined,
+                            isMaster: false,
+                            external: false,
+                            lastBackup: new Date(1970, 1, 1).getTime(),
+                            versionOk: true
                         }
                     });
                 })
@@ -661,13 +702,26 @@ module.exports = {
                             privateIp: '5.6.7.8',
                             publicIp: '123.456.789.1',
                             hostname: '5.6.7.8_myHostname',
-                            providerVisible: true
+                            providerVisible: true,
+                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
+                            version: undefined,
+                            isMaster: false,
+                            external: false,
+                            lastBackup: new Date(1970, 1, 1).getTime(),
+                            versionOk: true
                         },
                         456: {
                             mgmtIp: '7.8.9.0',
                             privateIp: '7.8.9.0',
+                            publicIp: undefined,
                             hostname: '7.8.9.0_myHostname',
-                            providerVisible: true
+                            providerVisible: true,
+                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
+                            version: undefined,
+                            isMaster: false,
+                            external: false,
+                            lastBackup: new Date(1970, 1, 1).getTime(),
+                            versionOk: true
                         }
                     });
                 })
@@ -746,13 +800,26 @@ module.exports = {
                             privateIp: '5.6.7.8',
                             publicIp: '123.456.789.1',
                             hostname: '5.6.7.8_myHostname',
-                            providerVisible: true
+                            providerVisible: true,
+                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
+                            version: undefined,
+                            isMaster: false,
+                            external: false,
+                            lastBackup: new Date(1970, 1, 1).getTime(),
+                            versionOk: true
                         },
                         456: {
                             mgmtIp: '7.8.9.0',
                             privateIp: '7.8.9.0',
+                            publicIp: undefined,
                             hostname: '7.8.9.0_myHostname',
-                            providerVisible: true
+                            providerVisible: true,
+                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
+                            version: undefined,
+                            isMaster: false,
+                            external: false,
+                            lastBackup: new Date(1970, 1, 1).getTime(),
+                            versionOk: true
                         },
                         'myResourceGroup-myInterface': {
                             mgmtIp: '10.11.12.13',
