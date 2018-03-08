@@ -8,6 +8,7 @@
 
 'use strict';
 
+const options = require('commander');
 const fs = require('fs');
 const q = require('q');
 const msRestAzure = require('ms-rest-azure');
@@ -15,9 +16,20 @@ const NetworkManagementClient = require('azure-arm-network');
 const Logger = require('@f5devcentral/f5-cloud-libs').logger;
 const BigIp = require('@f5devcentral/f5-cloud-libs').bigIp;
 
-const LogLevel = 'info';
+
+/**
+ * Grab command line arguments
+*/
+options
+    .version('1.0.0')
+
+    .option('--instance-id [type]', 'This Instance ID', '0')
+    .option('--nat-base [type]', 'mgmtnatpool.')
+    .option('--log-level [type]', 'Specify the Log Level', 'info')
+    .parse(process.argv);
+
 const logFile = '/var/log/cloud/azure/azureScaleSet.log';
-const logger = Logger.getLogger({ logLevel: LogLevel, fileName: logFile, console: true });
+const logger = Logger.getLogger({ logLevel: options.logLevel, fileName: logFile, console: true });
 
 let credentialsFile;
 if (fs.existsSync('/config/cloud/.azCredentials')) {
@@ -34,8 +46,8 @@ const secret = credentialsFile.secret;
 const resourceGroupName = credentialsFile.resourceGroupName;
 
 const loadBalancerName = credentialsFile.loadBalancerName;
-const instanceId = credentialsFile.instanceId;
-const inboundNatRuleBase = 'mgmtnatpool.';
+const instanceId = options.instanceId;
+const inboundNatRuleBase = options.natBase;
 let instancePort;
 
 const credentials = new msRestAzure.ApplicationTokenCredentials(clientId, tenantId, secret);
