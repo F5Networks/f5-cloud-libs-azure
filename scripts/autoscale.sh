@@ -2,7 +2,6 @@
 
 # Parse the command line arguments
 log_level=debug
-nat_base='mgmtnatpool.'
 while [[ $# -gt 1 ]]; do
     case "$1" in
         --resourceGroup)
@@ -66,7 +65,7 @@ while [[ $# -gt 1 ]]; do
             external_tag="--external-tag $2"
             shift 2;;
         --natBase)
-            nat_base=$2
+            nat_base="--nat-base $2"
             shift 2;;
         --logLevel)
             log_level=$2
@@ -150,7 +149,7 @@ if [[ ! -z $big_iq_lic_host ]]; then
         instance_id=$(echo $instance | grep -E -o "_.{0,3}" | sed 's/_//;s/\"//g')
         jq -c .instanceId=$instance_id $azure_secret_file > tmp.$$.json && mv tmp.$$.json $azure_secret_file
         # Make Azure Rest API call to get frontend port
-        ext_port_via_api=$(/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs-azure/scripts/scaleSetProvider.js --instance-id $instance_id --nat-base $nat_base)
+        ext_port_via_api=$(/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs-azure/scripts/scaleSetProvider.js --instance-id $instance_id $nat_base)
         big_ip_ext_mgmt_port=$(echo $ext_port_via_api | grep 'Port Selected: ' | awk -F 'Selected: ' '{print $2}')
     fi
     echo "BIG-IP via BIG-IQ Info... IP: $big_ip_ext_mgmt_addr Port: $big_ip_ext_mgmt_port"
