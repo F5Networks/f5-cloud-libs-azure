@@ -449,34 +449,6 @@ function matchNics(nics, vs, selfIps, tgs, global) {
     const theirNicsArr = [];
     const trafficGroupIpArr = [];
 
-    selfIps.forEach((self) => {
-        mySelfIpArr.push({
-            address: self.address.split('/')[0]
-        });
-    });
-
-    Object.keys(entries).forEach((key) => {
-        if (entries[key].nestedStats.entries.deviceName.description.includes(hostname)
-        && entries[key].nestedStats.entries.failoverState.description === 'active') {
-            myTrafficGroupsArr.push({
-                trafficGroup: entries[key].nestedStats.entries.trafficGroup.description
-            });
-        }
-    });
-
-    vs.forEach((virtualAddress) => {
-        address = virtualAddress.address;
-        virtualAddressTrafficGroup = virtualAddress.trafficGroup;
-
-        myTrafficGroupsArr.forEach((tgmember) => {
-            if (tgmember.trafficGroup.includes(virtualAddressTrafficGroup)) {
-                trafficGroupIpArr.push({
-                    address
-                });
-            }
-        });
-    });
-
     const updateNics = function (group, nicName, nicParams, action) {
         return new Promise(
             ((resolve, reject) => {
@@ -495,7 +467,6 @@ function matchNics(nics, vs, selfIps, tgs, global) {
         );
     };
 
-
     const retrier = function (fnToTry, nicArr) {
         return new Promise(
             function retryFunc(resolve, reject) {
@@ -510,6 +481,38 @@ function matchNics(nics, vs, selfIps, tgs, global) {
             }
         );
     };
+
+    selfIps.forEach((self) => {
+        mySelfIpArr.push({
+            address: self.address.split('/')[0]
+        });
+    });
+
+    Object.keys(entries).forEach((key) => {
+        if (entries[key].nestedStats.entries.deviceName.description.includes(hostname)
+        && entries[key].nestedStats.entries.failoverState.description === 'active') {
+            myTrafficGroupsArr.push({
+                trafficGroup: entries[key].nestedStats.entries.trafficGroup.description
+            });
+        }
+    });
+
+    if (!vs.length) {
+        logger.error('No virtual addresses exist, create them prior to failover.');
+    } else {
+        vs.forEach((virtualAddress) => {
+            address = virtualAddress.address;
+            virtualAddressTrafficGroup = virtualAddress.trafficGroup;
+
+            myTrafficGroupsArr.forEach((tgmember) => {
+                if (tgmember.trafficGroup.includes(virtualAddressTrafficGroup)) {
+                    trafficGroupIpArr.push({
+                        address
+                    });
+                }
+            });
+        });
+    }
 
     nics.forEach((nic) => {
         if (nic.name.toLowerCase().includes(uniqueLabel.toLowerCase())
