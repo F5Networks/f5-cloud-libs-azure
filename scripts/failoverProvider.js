@@ -1,285 +1,383 @@
 #!/usr/bin/env node
-/*jshint loopfunc:true */
 
-var LogLevel = 'info';
-var Logger = require('@f5devcentral/f5-cloud-libs').logger;
-var logger = Logger.getLogger({logLevel: LogLevel, fileName: '/var/log/cloud/azure/azureFailover.log'});
+'use strict';
 
-var util = require('@f5devcentral/f5-cloud-libs').util;
-var fs = require('fs');
+const options = require('commander');
+const fs = require('fs');
+const q = require('q');
+const msRestAzure = require('ms-rest-azure');
+const NetworkManagementClient = require('azure-arm-network');
+const azureStorage = require('azure-storage');
+const f5CloudLibs = require('@f5devcentral/f5-cloud-libs');
+
+const Logger = f5CloudLibs.logger;
+const util = f5CloudLibs.util;
+
+/**
+ * Grab command line arguments
+*/
+options
+    .version('1.0.0')
+
+    .option('--log-level [type]', 'Specify the log level', 'info')
+    .parse(process.argv);
+
+const logFile = '/var/log/cloud/azure/azureFailover.log';
+const loggerOptions = { logLevel: options.logLevel, fileName: logFile, console: true };
+const logger = Logger.getLogger(loggerOptions);
+const BigIp = f5CloudLibs.bigIp;
+const bigip = new BigIp({ logger });
+
+let uniqueLabel;
+let resourceGroup;
+let networkClient;
+let routeFilter;
+let storageAccount;
+let storageKey;
+let storageClient;
 
 if (fs.existsSync('/config/cloud/.azCredentials')) {
-    var credentialsFile = JSON.parse(fs.readFileSync('/config/cloud/.azCredentials', 'utf8'));
-}
-else {
-    logger.info('Credentials file not found');
+    logger.debug('Credentials file found');
+    const credentialsFile = JSON.parse(fs.readFileSync('/config/cloud/.azCredentials', 'utf8'));
+    const clientId = credentialsFile.clientId;
+    const secret = credentialsFile.secret;
+    const subscriptionId = credentialsFile.subscriptionId;
+    const tenantId = credentialsFile.tenantId;
+    storageAccount = credentialsFile.storageAccount;
+    storageKey = credentialsFile.storageKey;
+    storageClient = azureStorage.createBlobService(
+        storageAccount,
+        storageKey
+    );
+    const credentials = new msRestAzure.ApplicationTokenCredentials(clientId, tenantId, secret);
+    uniqueLabel = credentialsFile.uniqueLabel;
+    resourceGroup = credentialsFile.resourceGroupName;
+    networkClient = new NetworkManagementClient(credentials, subscriptionId);
+} else {
+    logger.error('Credentials file not found');
     return;
 }
 
-var subscriptionId = credentialsFile.subscriptionId;
-var clientId = credentialsFile.clientId;
-var tenantId = credentialsFile.tenantId;
-var secret = credentialsFile.secret;
-var resourceGroup = credentialsFile.resourceGroupName;
-
-var msRestAzure = require('ms-rest-azure');
-var credentials = new msRestAzure.ApplicationTokenCredentials(clientId, tenantId, secret);
-
-var networkManagementClient = require('azure-arm-network');
-var networkClient = new networkManagementClient(credentials, subscriptionId);
-
 if (fs.existsSync('/config/cloud/managedRoutes')) {
-    var routeFilter = fs.readFileSync('/config/cloud/managedRoutes', 'utf8').replace(/(\r\n|\n|\r)/gm,"").split(',');
-}
-else {
-    var routeFilter = [];
+    logger.silly('Managed routes file found');
+    routeFilter =
+        fs.readFileSync('/config/cloud/managedRoutes', 'utf8').replace(/(\r\n|\n|\r)/gm, '').split(',');
+} else {
+    routeFilter = [];
     logger.info('Managed routes file not found');
 }
 
-if (fs.existsSync('/config/cloud/routeTableTag')) {
-    var routeTableTags = fs.readFileSync('/config/cloud/routeTableTag', 'utf8').replace(/(\r\n|\n|\r)/gm,"").split('\n');
-}
-else {
-    var routeTableTags = [];
-    logger.info('Route table tag file not found');
-}
-
-var extIpName = '-ext-pip';
-var extIpConfigName = '-ext-ipconfig';
-var selfIpConfigName = '-self-ipconfig';
-
-var BigIp;
-var bigip;
-BigIp = require('@f5devcentral/f5-cloud-libs').bigIp;
-bigip = new BigIp({logger: logger});
-
-var tgStats = [];
-var globalSettings = [];
-
-bigip.init(
-    'localhost',
-    'svc_user',
-    'file:///config/cloud/.passwd',
-    {
-        passwordIsUrl: true,
-        port: '443',
-        passwordEncrypted: true
+const FAILOVER_CONTAINER = 'failover';
+const FAILOVER_FILE = 'statusdb';
+const FAILOVER_STATUS_SUCCESS = 'succeeded';
+const FAILOVER_STATUS_FAIL = 'failed';
+const FAILOVER_STATUS_RUN = 'running';
+const MAX_RUNNING_TASK_MS = 5 * 60000; // 5 minutes
+let tgStats = [];
+let globalSettings = [];
+let virtualAddresses = [];
+let selfIpsArr = [];
+let recoverPreviousTask = false;
+// Define base properties of failover database in storage
+let failoverDbBlob = {
+    status: '',
+    timeStamp: '',
+    desiredConfiguration: {
+        nicArr: {}
     }
-)
-.then(function() {
-    Promise.all([
-        bigip.list('/tm/cm/traffic-group/stats'),
-        bigip.list('/tm/sys/global-settings'),
-    ])
-    .then((results) => {
-        tgStats = results[0];
-        globalSettings = results[1];
-        Promise.all([
-            listRouteTables(),
-            bigip.list('/tm/net/self/self_3nic'),
-        ])
-        .then((results) => {
-            matchRoutes(results[0], results[1].address, tgStats, globalSettings);
+};
+
+const performFailover = function () {
+    const deferred = q.defer();
+
+    putJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE, failoverDbBlob)
+        .then(() => {
+            return bigip.init(
+                'localhost',
+                'svc_user',
+                'file:///config/cloud/.passwd',
+                {
+                    passwordIsUrl: true,
+                    port: '443',
+                    passwordEncrypted: true
+                }
+            );
         })
-        .catch(err => {
-            logger.info('Error: ', err);
-        });
-        Promise.all([
-            listAzNics(resourceGroup),
-            listPublicIPs(resourceGroup),
-            bigip.list('/tm/net/self/self_2nic'),
-            ])
-        .then((results) => {
-            matchNics(results[0], results[1], results[2].address, tgStats, globalSettings);
+        .then(() => {
+            return Promise.all([
+                bigip.list('/tm/cm/traffic-group/stats'),
+                bigip.list('/tm/sys/global-settings'),
+                bigip.list('/tm/net/self'),
+                bigip.list('/tm/ltm/virtual-address'),
+            ]);
         })
-        .catch(err => {
-            logger.info('Error in failover: ', err);
+        .then((results) => {
+            logger.silly('BIG-IP information successfully retrieved');
+            tgStats = results[0];
+            globalSettings = results[1];
+            selfIpsArr = results[2];
+            virtualAddresses = results[3];
+            return Promise.all([
+                listRouteTables(),
+                listAzNics(resourceGroup),
+            ]);
+        })
+        .then((results) => {
+            logger.info('Performing failover');
+            return Promise.all([
+                matchRoutes(results[0], selfIpsArr, tgStats, globalSettings),
+                matchNics(results[1], virtualAddresses, selfIpsArr, tgStats, globalSettings),
+            ]);
+        })
+        .then(() => {
+            logger.silly('Updating failover database in storage');
+            failoverDbBlob.status = FAILOVER_STATUS_SUCCESS;
+            return putJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE, failoverDbBlob);
+        })
+        .then(() => {
+            logger.silly('Updated failover database successfully');
+            deferred.resolve();
+        })
+        .catch((err) => {
+            failoverDbBlob.status = FAILOVER_STATUS_FAIL;
+            putJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE, failoverDbBlob)
+                .then(() => {
+                    logger.error('Error during failover:', err);
+                    deferred.reject(err);
+                });
         });
+    return deferred.promise;
+};
+
+storageInit(storageClient)
+    .then(() => {
+        return getJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE);
     })
-    .catch(err => {
-        logger.info('Error getting device information: ', err);
-    });
-});
+    .then((results) => {
+        failoverDbBlob = results;
 
-/**
-* Lists all route tables in the subscription
-*
-* @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
-*/
-function listRouteTables() {
+        logger.debug('Failover database status:', failoverDbBlob.status);
+        if (results.status === FAILOVER_STATUS_RUN || results.status === FAILOVER_STATUS_FAIL) {
+            if (typeof failoverDbBlob.timeStamp !== 'undefined' && failoverDbBlob.timeStamp !== '') {
+                const differenceInMs = new Date() - Date.parse(failoverDbBlob.timeStamp);
+                logger.silly('differenceInMs:', differenceInMs, 'MAX_RUNNING_TASK_MS:', MAX_RUNNING_TASK_MS);
+                if (differenceInMs > MAX_RUNNING_TASK_MS) {
+                    logger.info('Recovering from previous task, differenceInMs:', differenceInMs);
+                    recoverPreviousTask = true;
+                }
+            }
+            // Return - except when recovering from previous incomplete or failed task
+            if (!recoverPreviousTask) {
+                logger.info('Already performing failover, exit');
+                return q();
+            }
+        }
+
+        failoverDbBlob.status = FAILOVER_STATUS_RUN;
+        failoverDbBlob.timeStamp = new Date().toJSON();
+        return performFailover();
+    })
+    .then(() => {
+        logger.info('Failover finished successfully');
+    })
+    .catch((error) => {
+        logger.error('Failover failed:', error.message);
+    });
+
+const retryRoutes = function (routeTableGroup, routeTableName, routeName, routeParams) {
     return new Promise(
-    function (resolve, reject) {
-        networkClient.routeTables.listAll(
-        (error, data) => {
-            if (error) {
-                reject(error);
-            }
-            else {
-                resolve(data);
-            }
-        });
-    });
-}
+        ((resolve, reject) => {
+            logger.info('Updating route: ', routeName);
+            updateRoutes(routeTableGroup, routeTableName, routeName, routeParams)
+                .then(() => {
+                    logger.info('Update route successful: ', routeName);
+                    resolve();
+                })
+                .catch((error) => {
+                    logger.error('Update route error: ', error);
+                    // a 429 response indicates an error which is generally retryable within 15 seconds
+                    if (error.response.statusCode === '429') {
+                        reject();
+                    } else {
+                        reject(error);
+                    }
+                });
+        })
+    );
+};
 
 /**
-* Updates specified Azure user defined routes
-*
-* @param {String} routeTableGroup - Name of the route table resource group
-* @param {String} routeTableName - Name of the route table
-* @param {String} routeName - Name of the route to update
-* @param {Array} routeParams - New route parameters
-*
-* @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+    * Updates specified Azure user defined routes
+    *
+    * @param {String} routeTableGroup - Name of the route table resource group
+    * @param {String} routeTableName - Name of the route table
+    * @param {String} routeName - Name of the route to update
+    * @param {Array} routeParams - New route parameters
+    *
+    * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
 */
 function updateRoutes(routeTableGroup, routeTableName, routeName, routeParams) {
     return new Promise(
-    function (resolve, reject) {
-        networkClient.routes.beginCreateOrUpdate(routeTableGroup, routeTableName, routeName, routeParams,
-        (error, data) => {
-            if (error) {
-                reject(error);
+        ((resolve, reject) => {
+            networkClient.routes.beginCreateOrUpdate(routeTableGroup, routeTableName, routeName, routeParams,
+                (error, data) => {
+                    if (error) {
+                        reject(error);
+                    } else {
+                        resolve(data);
+                    }
+                });
+        })
+    );
+}
+
+/**
+    * Lists all route tables in the subscription
+    *
+    * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+*/
+function listRouteTables() {
+    return new Promise(
+        ((resolve, reject) => {
+            networkClient.routeTables.listAll(
+                (error, data) => {
+                    if (error) {
+                        reject(error);
+                    } else {
+                        resolve(data);
+                    }
+                }
+            );
+        })
+    );
+}
+
+/**
+    * Returns an array of routes
+    *
+    * @param {Object} mySelfIp - Our self IP
+    *
+    * @param {Array} routeTables - The Azure route tables
+    *
+    * @param {Array} myTrafficGroupsArr - Our going-active traffic groups
+    *
+*/
+function getRoutes(mySelfIp, routeTables, myTrafficGroupsArr) {
+    routeTables.forEach((routeTable) => {
+        if (routeTable.tags && routeTable.tags.f5_tg
+            && routeTable.tags.f5_ha
+            && mySelfIp.name.includes(routeTable.tags.f5_ha)) {
+            // get the tag for each route table that has one
+            const tgTag = routeTable.tags.f5_tg;
+
+            for (let t = myTrafficGroupsArr.length - 1; t >= 0; t--) {
+                if (myTrafficGroupsArr[t].trafficGroup.includes(tgTag)) {
+                    // set the resource group, name, and routes for each
+                    // route table with a tag that matches our self IP
+                    const routeTableGroup = routeTable.id.split('/')[4];
+                    const routeTableName = routeTable.name;
+                    const routes = routeTable.routes;
+
+                    sendRoutes(routes, routeTableGroup, routeTableName, mySelfIp);
+                }
             }
-            else {
-                resolve(data);
-            }
-        });
+        }
     });
 }
 
 /**
-* Determines which routes to update
-*
-* @param {Object} routeTables - All of the route tables in the subscription
-* @param {String} self - The internal self IP address of this BIG-IP
-*
+    * Returns an array of routes
+    *
+    * @param {Array} routes - The Azure routes
+    *
+    * @param {String} routeTableGroup - The Azure route table resource group
+    *
+    * @param {String} routeTableName - The Azure route table name
+    *
 */
-function matchRoutes(routeTables, self, tgs, global) {
-    var hostname = global.hostname;
-    var entries = tgs.entries;
-    var key;
-    var myTrafficGroupsArr = [];
+function sendRoutes(routes, routeTableGroup, routeTableName, mySelfIp) {
+    routes.forEach(function routeFunction(route) {
+        if (routeFilter.indexOf(route.addressPrefix) !== -1) {
+            // if route matches our file,
+            // update its next hop
+            const myRoute = route;
+            const routeName = myRoute.name;
+            myRoute.nextHopType = 'VirtualAppliance';
+            myRoute.nextHopIpAddress = mySelfIp.address;
+            const routeParams = myRoute;
 
-    for (key in entries) {
-        if (entries[key].nestedStats.entries.deviceName.description.includes(hostname) && entries[key].nestedStats.entries.failoverState.description == "active") {
+            const routeArr = [routeTableGroup, routeTableName, routeName, routeParams];
+
+            util.tryUntil(this, { maxRetries: 4, retryIntervalMs: 15000 },
+                retryRoutes, routeArr);
+        }
+    });
+}
+
+/**
+    * Determines which routes to update
+    *
+    * @param {Object} routeTables - All of the route tables in the subscription
+    * @param {String} self - The internal self IP address of this BIG-IP
+    *
+*/
+function matchRoutes(routeTables, selfIps, tgs, global) {
+    const entries = tgs.entries;
+    const hostname = global.hostname;
+    let s;
+
+    const mySelfIpArr = [];
+    const myTrafficGroupsArr = [];
+
+    selfIps.forEach((self) => {
+        mySelfIpArr.push({
+            name: self.name,
+            address: self.address.split('/')[0]
+        });
+    });
+
+    Object.keys(entries).forEach((key) => {
+        if (entries[key].nestedStats.entries.deviceName.description.includes(hostname)
+        && entries[key].nestedStats.entries.failoverState.description === 'active') {
             myTrafficGroupsArr.push({
-                'trafficGroup': entries[key].nestedStats.entries.trafficGroup.description
+                trafficGroup: entries[key].nestedStats.entries.trafficGroup.description
             });
         }
+    });
+
+    for (s = mySelfIpArr.length - 1; s >= 0; s--) {
+        getRoutes(mySelfIpArr[s], routeTables, myTrafficGroupsArr);
     }
-
-    var fields = self.split('/');
-    var selfIp = fields[0];
-
-    var routeTag;
-    var tgTag;
-    var t;
-    var routeTableGroup;
-    var routeTableName;
-    var routes;
-    var routeName;
-    var routeParams;
-    var routeArr = [];
-
-    var retryRoutes = function(routeTableGroup, routeTableName, routeName, routeParams) {
-        return new Promise (
-        function(resolve, reject) {
-            updateRoutes(routeTableGroup, routeTableName, routeName, routeParams)
-            .then(function() {
-                logger.info("Update route successful.");
-                resolve();
-            })
-            .catch(function(error) {
-                logger.info("Update route error: ", error);
-                //a 429 response indicates an error which is generally retryable within 15 seconds
-                if (error.response.statusCode == "429") {
-                    reject();
-                }
-                else {
-                    reject(error);
-                }
-            });
-        });
-    };
-
-    routeTables.forEach(function(routeTable) {
-        if (routeTable.tags && routeTable.tags.f5_ha && routeTable.tags.f5_tg) {
-            routeTag = routeTable.tags.f5_ha;
-            tgTag = routeTable.tags.f5_tg;
-
-            for (t=myTrafficGroupsArr.length-1; t>=0; t--) {
-                if (myTrafficGroupsArr[t].trafficGroup.includes(tgTag) && routeTableTags.indexOf(routeTag) !== -1) {
-                    routeTableGroup = routeTable.id.split("/")[4];
-                    routeTableName = routeTable.name;
-                    routes = routeTable.routes;
-
-                    routes.forEach(function(route) {
-                        if (routeFilter.indexOf(route.addressPrefix) !== -1) {
-                            routeName = route.name;
-                            route.nextHopType = 'VirtualAppliance';
-                            route.nextHopIpAddress = selfIp;
-                            routeParams = route;
-
-                            routeArr = [routeTableGroup, routeTableName, routeName, routeParams];
-
-                            util.tryUntil(this, {maxRetries: 4, retryIntervalMs: 15000}, retryRoutes, routeArr);
-                        }
-                    });
-                }
-            }
-        }
-    });
 }
 
 /**
-* Lists all network interface configurations in this resource group
-*
-* @param {String} resourceGroup - Name of the resource group
-*
-* @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+    * Lists all network interface configurations in this resource group
+    *
+    * @param {String} resourceGroup - Name of the resource group
+    *
+    * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
 */
-function listAzNics(resourceGroup) {
+function listAzNics() {
     return new Promise(
-    function (resolve, reject) {
-        networkClient.networkInterfaces.list(resourceGroup,
-        (error, data) => {
-            if (error) {
-                reject(error);
-            }
-            else {
-                resolve(data);
-            }
-        });
-    });
+        ((resolve, reject) => {
+            networkClient.networkInterfaces.list(resourceGroup,
+                (error, data) => {
+                    if (error) {
+                        reject(error);
+                    } else {
+                        resolve(data);
+                    }
+                });
+        })
+    );
 }
 
 /**
-* Lists all public IP addresses in this resource group
-*
-* @param {String} resourceGroup - Name of the resource group
-*
-* @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
-*/
-function listPublicIPs(resourceGroup) {
-    return new Promise(
-    function (resolve, reject) {
-        networkClient.publicIPAddresses.list(resourceGroup,
-        (error, data) => {
-            if (error) {
-                reject(error);
-            }
-            else {
-                resolve(data);
-            }
-        });
-    });
-}
-
-/**
-* Returns a network interface IP configuration
-*
-* @param {Object} ipConfig - The full Azure IP configuration
-*
-* @returns {Array} An array of IP configuration parameters
+    * Returns a network interface IP configuration
+    *
+    * @param {Object} ipConfig - The full Azure IP configuration
+    *
+    * @returns {Array} An array of IP configuration parameters
 */
 function getNicConfig(ipConfig) {
     return {
@@ -288,250 +386,401 @@ function getNicConfig(ipConfig) {
         privateIPAddress: ipConfig.privateIPAddress,
         primary: ipConfig.primary,
         publicIPAddress: ipConfig.publicIPAddress,
-        subnet: ipConfig.subnet
+        subnet: ipConfig.subnet,
+        loadBalancerBackendAddressPools: ipConfig.loadBalancerBackendAddressPools
     };
 }
 
 /**
-* Determines which IP configurations to move to and from network interfaces
-*
-* @param {Object} nics - The network interface configurations
-* @param {Object} pips - The public IP address configurations
-* @param {String} self - The external self IP address of this BIG-IP
-*
-* @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+    * Returns an array of IP configurations
+    *
+    * @param {Object} ipConfigurations - The Azure NIC IP configurations
+    *
+    * @returns {Array} An array of IP configurations
 */
-function matchNics(nics, pips, self, tgs, global) {
-    var hostname = global.hostname;
-    var entries = tgs.entries;
-    var key;
-    var myTrafficGroupsArr = [];
+function getIpConfigs(ipConfigurations) {
+    const nicArr = [];
+    ipConfigurations.forEach((ipConfiguration) => {
+        nicArr.push(getNicConfig(ipConfiguration));
+    });
+    return nicArr;
+}
 
-    for (key in entries) {
-        if ( entries[key].nestedStats.entries.deviceName.description.includes(hostname) && entries[key].nestedStats.entries.failoverState.description == "active" ) {
+/**
+    * Determines which IP configurations to move to and from network interfaces
+    *
+    * @param {Object} nics    - The network interface configurations
+    * @param {Object} vs      - The virtual server configurations
+    * @param {String} selfIps - The external self IP address of this BIG-IP
+    * @param {String} tgs     - The traffic group stats
+    * @param {String} global     - The global settings of this BIG-IP
+    *
+    * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+*/
+function matchNics(nics, vs, selfIps, tgs, global) {
+    let h;
+    let i;
+    let p;
+    let qp;
+    let s;
+    let t;
+    let address;
+    const entries = tgs.entries;
+    const hostname = global.hostname;
+    let ipConfigurations;
+
+    let myNsg;
+    let myIpForwarding;
+    let myTags;
+    let ourLocation;
+
+    let theirNsg;
+    let theirTags;
+    let theirIpForwarding;
+    let virtualAddressTrafficGroup;
+
+    let associateArr = [];
+    let disassociateArr = [];
+    let myNicArr = [];
+    const myNicsArr = [];
+    const mySelfIpArr = [];
+    const myTrafficGroupsArr = [];
+    let theirNicArr = [];
+    const theirNicsArr = [];
+    const trafficGroupIpArr = [];
+
+    selfIps.forEach((self) => {
+        mySelfIpArr.push({
+            address: self.address.split('/')[0]
+        });
+    });
+
+    Object.keys(entries).forEach((key) => {
+        if (entries[key].nestedStats.entries.deviceName.description.includes(hostname)
+        && entries[key].nestedStats.entries.failoverState.description === 'active') {
             myTrafficGroupsArr.push({
-                'trafficGroup': entries[key].nestedStats.entries.trafficGroup.description
+                trafficGroup: entries[key].nestedStats.entries.trafficGroup.description
             });
         }
-    }
+    });
 
-    var i;
-    var t;
+    vs.forEach((virtualAddress) => {
+        address = virtualAddress.address;
+        virtualAddressTrafficGroup = virtualAddress.trafficGroup;
 
-    var fields = self.split('/');
-    var selfIp = fields[0];
-
-    var ipConfigurations;
-
-    var theirNicName;
-    var theirNicConfig;
-    var theirNicParams;
-
-    var myNicName;
-    var myNicConfig;
-    var myNicParams;
-
-    var orphanedPipsArr = [];
-    var trafficGroupPipArr = [];
-
-    var pipConfig;
-    var pipName;
-    var name;
-    var pipPrivate;
-    var subnet;
-    var pipTrafficGroup;
-
-    var theirNicArr = [];
-    var myNicArr = [];
-
-    var ourLocation;
-    var theirNsg;
-    var myNsg;
-
-    var associateArr = [];
-    var disassociateArr = [];
-
-    var retryDissassociateNics = function(resourceGroup, theirNicName, theirNicParams) {
-        return new Promise (
-        function(resolve, reject) {
-            disassociateNics(resourceGroup, theirNicName, theirNicParams)
-            .then(function() {
-                resolve();
-            })
-            .catch(function(error) {
-                logger.info("Disassociate NICs error: ", error);
-                if (error.response.statusCode == "200") {
-                    resolve();
-                }
-                else {
-                    reject(error);
-                }
-            });
+        myTrafficGroupsArr.forEach((tgmember) => {
+            if (tgmember.trafficGroup.includes(virtualAddressTrafficGroup)) {
+                trafficGroupIpArr.push({
+                    address
+                });
+            }
         });
+    });
+
+    const updateNics = function (group, nicName, nicParams, action) {
+        return new Promise(
+            ((resolve, reject) => {
+                logger.info(action, 'NIC: ', nicName);
+                networkClient.networkInterfaces.createOrUpdate(group, nicName, nicParams,
+                    (error, data) => {
+                        if (error) {
+                            logger.error(action, 'NIC error: ', error);
+                            reject(error);
+                        } else {
+                            logger.info(action, 'NIC successful: ', nicName);
+                            resolve(data);
+                        }
+                    });
+            })
+        );
     };
 
-    var retryAssociateNics = function(resourceGroup, myNicName, myNicParams) {
-        return new Promise (
-        function(resolve, reject) {
-            associateNics(resourceGroup, myNicName, myNicParams)
-            .then(function() {
-                resolve();
-            })
-            .catch(function(error) {
-                logger.info("Associate NICs error: ", error);
-                if (error.response.statusCode == "200") {
-                    resolve();
-                }
-                else {
-                    reject(error);
-                }
-            });
-        });
+
+    const retrier = function (fnToTry, nicArr) {
+        return new Promise(
+            function retryFunc(resolve, reject) {
+                util.tryUntil(this, { maxRetries: 4, retryIntervalMs: 15000 }, fnToTry, nicArr)
+                    .then(() => {
+                        resolve();
+                    })
+                    .catch((error) => {
+                        logger.error('Error: ', error);
+                        reject(error);
+                    });
+            }
+        );
     };
 
-    nics.forEach(function(nic) {
-        ipConfigurations = nic.ipConfigurations;
-        ipConfigurations.forEach(function(ipConfiguration) {
-            if (ipConfiguration.privateIPAddress === selfIp) {
-                myNicName = nic.name;
-                myNicConfig = nic;
-            }
-            else if (ipConfiguration.privateIPAddress !== selfIp && ipConfiguration.id.includes(selfIpConfigName)) {
-                theirNicName = nic.name;
-                theirNicConfig = nic;
-            }
-        });
-    });
-
-    if ( !myNicName || !myNicConfig || !theirNicName || !theirNicConfig ) {
-        logger.info("Could not determine network interfaces.");
-    }
-
-    pips.forEach(function(pip) {
-        if (pip.tags && pip.tags.f5_privateIp && pip.tags.f5_extSubnetId && pip.tags.f5_tg && pip.name.includes(extIpName)) {
-            pipConfig = {};
-            pipConfig.id = pip.id;
-            pipName = pip.name;
-            name = pipName.replace(extIpName, extIpConfigName);
-            pipPrivate = pip.tags.f5_privateIp;
-            subnet = {};
-            subnet.id = pip.tags.f5_extSubnetId;
-
-            pipTrafficGroup = pip.tags.f5_tg;
-
-            myTrafficGroupsArr.forEach(function(tgmember) {
-                if (tgmember.trafficGroup.includes(pipTrafficGroup)) {
-                    if (!pip.ipConfiguration) {
-                        orphanedPipsArr.push({
-                            'name': name,
-                            'privateIPAllocationMethod': 'Static',
-                            'privateIPAddress': pipPrivate,
-                            'primary': false,
-                            'publicIPAddress': pipConfig,
-                            'subnet': subnet
-                        });
+    nics.forEach((nic) => {
+        if (nic.name.toLowerCase().includes(uniqueLabel.toLowerCase())
+        && nic.provisioningState === 'Succeeded') {
+            ipConfigurations = nic.ipConfigurations;
+            ipConfigurations.forEach((ipConfiguration) => {
+                mySelfIpArr.forEach((selfIp) => {
+                    if (ipConfiguration.privateIPAddress === selfIp.address) {
+                        if (myNicsArr.indexOf(nic) === -1) {
+                            myNicsArr.push({
+                                nic
+                            });
+                        }
                     }
-                    else {
-                        trafficGroupPipArr.push({
-                            'publicIPAddress': pipConfig
-                        });
+                });
+                trafficGroupIpArr.forEach((trafficGroupIp) => {
+                    if (ipConfiguration.privateIPAddress === trafficGroupIp.address) {
+                        if (theirNicsArr.indexOf(nic) === -1) {
+                            theirNicsArr.push({
+                                nic
+                            });
+                        }
                     }
-                }
+                });
             });
         }
     });
 
-    theirNicConfig.ipConfigurations.forEach(function(ipConfiguration) {
-        theirNicArr.push(getNicConfig(ipConfiguration));
-    });
-
-    myNicConfig.ipConfigurations.forEach(function(ipConfiguration) {
-        myNicArr.push(getNicConfig(ipConfiguration));
-    });
-
-    for (i=theirNicArr.length-1; i>=0; i--) {
-        if (theirNicArr[i].name.includes(extIpConfigName)) {
-            for (t=trafficGroupPipArr.length-1; t>=0; t--) {
-                if (trafficGroupPipArr[t].publicIPAddress.id.includes(theirNicArr[i].publicIPAddress.id)) {
-                    myNicArr.push(getNicConfig(theirNicArr[i]));
-                    theirNicArr.splice(i, 1);
-                    break;
-                }
+    for (p = myNicsArr.length - 1; p >= 0; p--) {
+        for (qp = theirNicsArr.length - 1; qp >= 0; qp--) {
+            if (myNicsArr[p].nic.id === theirNicsArr[qp].nic.id) {
+                theirNicsArr.splice(qp, 1);
+                break;
             }
         }
     }
 
-    for (i=orphanedPipsArr.length-1; i>=0; i--) {
-        myNicArr.push(getNicConfig(orphanedPipsArr[i]));
+    if (!myNicsArr || !theirNicsArr) {
+        logger.error('Could not determine network interfaces.');
     }
 
-    ourLocation = myNicConfig.location;
-    theirNsg = theirNicConfig.networkSecurityGroup;
-    myNsg = myNicConfig.networkSecurityGroup;
+    for (s = myNicsArr.length - 1; s >= 0; s--) {
+        for (h = theirNicsArr.length - 1; h >= 0; h--) {
+            if (theirNicsArr[h].nic.name !== myNicsArr[s].nic.name
+                && theirNicsArr[h].nic.name.slice(0, -1) === myNicsArr[s].nic.name.slice(0, -1)) {
+                myNicArr = [];
+                theirNicArr = [];
+                ourLocation = myNicsArr[s].nic.location;
+                theirNsg = theirNicsArr[h].nic.networkSecurityGroup;
+                myNsg = myNicsArr[s].nic.networkSecurityGroup;
+                theirIpForwarding = theirNicsArr[h].nic.enableIPForwarding;
+                myIpForwarding = myNicsArr[s].nic.enableIPForwarding;
+                theirTags = theirNicsArr[h].nic.tags;
+                myTags = myNicsArr[s].nic.tags;
 
-    theirNicParams = { location: ourLocation, ipConfigurations:theirNicArr, networkSecurityGroup: theirNsg };
-    myNicParams = { location: ourLocation, ipConfigurations:myNicArr, networkSecurityGroup: myNsg };
+                myNicArr = getIpConfigs(myNicsArr[s].nic.ipConfigurations);
+                theirNicArr = getIpConfigs(theirNicsArr[h].nic.ipConfigurations);
 
-    disassociateArr = [resourceGroup, theirNicName, theirNicParams];
-    associateArr = [resourceGroup, myNicName, myNicParams];
+                for (i = theirNicArr.length - 1; i >= 0; i--) {
+                    for (t = trafficGroupIpArr.length - 1; t >= 0; t--) {
+                        if (trafficGroupIpArr[t].address.includes(theirNicArr[i].privateIPAddress)) {
+                            myNicArr.push(getNicConfig(theirNicArr[i]));
+                            theirNicArr.splice(i, 1);
+                            break;
+                        }
+                    }
+                }
 
-    util.tryUntil(this, {maxRetries: 4, retryIntervalMs: 15000}, retryDissassociateNics, disassociateArr)
-    .then(function () {
-        logger.info("Disassociate NICs successful.");
-        return util.tryUntil(this, {maxRetries: 4, retryIntervalMs: 15000}, retryAssociateNics, associateArr);
-    })
-    .then(function () {
-        logger.info("Associate NICs successful.");
-    })
-    .catch(function (error) {
-        logger.info('Error: ', error);
-    });
+                const theirNicParams = {
+                    location: ourLocation,
+                    ipConfigurations: theirNicArr,
+                    networkSecurityGroup: theirNsg,
+                    tags: theirTags,
+                    enableIPForwarding: theirIpForwarding
+                };
+                const myNicParams = {
+                    location: ourLocation,
+                    ipConfigurations: myNicArr,
+                    networkSecurityGroup: myNsg,
+                    tags: myTags,
+                    enableIPForwarding: myIpForwarding
+                };
+
+                disassociateArr.push([resourceGroup, theirNicsArr[h].nic.name, theirNicParams,
+                    'Disassociate']);
+                associateArr.push([resourceGroup, myNicsArr[s].nic.name, myNicParams,
+                    'Associate']);
+
+                break;
+            }
+        }
+    }
+
+    if (recoverPreviousTask) {
+        // Replace current configuration with previous desired configuration from failover database
+        disassociateArr = failoverDbBlob.desiredConfiguration.nicArr.disassociateArr;
+        associateArr = failoverDbBlob.desiredConfiguration.nicArr.associateArr;
+    }
+    // Update failover database with desired configuration prior to updating NICs
+    if (disassociateArr.length && associateArr.length) {
+        failoverDbBlob.desiredConfiguration.nicArr = {};
+        failoverDbBlob.desiredConfiguration.nicArr.disassociateArr = disassociateArr;
+        failoverDbBlob.desiredConfiguration.nicArr.associateArr = associateArr;
+    }
+
+    const associateDeferred = q.defer();
+    putJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE, failoverDbBlob)
+        .then(() => {
+            const disassociatePromises = disassociateArr.map(retrier.bind(null, updateNics));
+            return Promise.all(disassociatePromises);
+        })
+        .then(() => {
+            logger.info('Disassociate NICs successful.');
+            const associatePromises = associateArr.map(retrier.bind(null, updateNics));
+            return Promise.all(associatePromises);
+        })
+        .then(() => {
+            logger.info('Associate NICs successful.');
+            associateDeferred.resolve();
+        })
+        .catch((error) => {
+            logger.error('Error: ', error);
+            associateDeferred.reject(error);
+        });
+    return associateDeferred.promise;
 }
 
 /**
-* Removes specified IP configurations from the remote network interface
-*
-* @param {String} resourceGroup - Name of the resource group
-* @param {String} theirNicName - Name of the network interface to update
-* @param {Array} theirNicParams - Network interface parameters
-*
-* @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
-*/
-function disassociateNics(resourceGroup, theirNicName, theirNicParams) {
-    return new Promise(
-    function (resolve, reject) {
-        networkClient.networkInterfaces.createOrUpdate(resourceGroup, theirNicName, theirNicParams,
-        (error, data) => {
-            if (error) {
-                reject(error);
+ * Initialize storage
+ *
+ * @param {Object}  sClient - Azure storage client.
+ *
+ * @returns {Promise} A promise which will be resolved when storage init is complete.
+ */
+function storageInit(sClient) {
+    const deferred = q.defer();
+
+    createContainers(sClient, [FAILOVER_CONTAINER])
+        .then(() => {
+            return checkJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE);
+        })
+        .then((results) => {
+            if (results.exists) {
+                // blob exists, continue
+                deferred.resolve();
+            } else {
+                putJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE, failoverDbBlob)
+                    .then(() => {
+                        deferred.resolve();
+                    });
             }
-            else {
-                resolve(data);
-            }
+        })
+        .catch((err) => {
+            deferred.reject(err);
         });
-    });
+
+    return deferred.promise;
 }
 
 /**
-* Adds specified IP configurations to the local network interface
-*
-* @param {String} resourceGroup - Name of the resource group
-* @param {String} myNicName - Name of the network interface to update
-* @param {Array} myNicParams - Network interface parameters
-*
-* @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
-*/
-function associateNics(resourceGroup, myNicName, myNicParams) {
-    return new Promise(
-    function (resolve, reject) {
-        networkClient.networkInterfaces.createOrUpdate(resourceGroup, myNicName, myNicParams,
-        (error, data) => {
-            if (error) {
-                reject(error);
-            }
-            else {
-                resolve(data);
+ * Creates empty containers
+ *
+ * @param {Object}    sClient    - Azure storage instance
+ * @param {Object[]}  containers - Array of container names to create
+ *
+ * @returns {Promise} Promise which will be resolved when the operation completes
+ */
+function createContainers(sClient, containers) {
+    const promises = [];
+
+    const createContainer = function (container) {
+        const deferred = q.defer();
+
+        sClient.createContainerIfNotExists(container, (err) => {
+            if (err) {
+                logger.warn(err);
+                deferred.reject(err);
+            } else {
+                deferred.resolve();
             }
         });
+
+        return deferred.promise;
+    };
+
+    containers.forEach((container) => {
+        promises.push(createContainer(container));
     });
+
+    return q.all(promises);
+}
+
+/**
+ * Checks if a JSON object exists in Azure storage
+ *
+ * @param {Object}    sClient   - Azure storage instance
+ * @param {String}    container - Name of the container in which to store the Object
+ * @param {String}    name      - Name to store the object as
+ * @param {Object}    data      - Object to store
+ *
+ * @returns {Promise} Promise which will be resolved when the operation completes
+ *                    or rejected if an error occurs.
+ */
+function checkJsonObject(sClient, container, name) {
+    const deferred = q.defer();
+
+    sClient.doesBlobExist(container, name, (err, data) => {
+        if (err) {
+            deferred.reject(err);
+        } else {
+            logger.silly('checkJsonObject result:', data);
+            deferred.resolve(data);
+        }
+    });
+
+    return deferred.promise;
+}
+
+/**
+ * Gets a JSON object from Azure storage
+ *
+ * @param {Object}    sClient    - Azure storage instance
+ * @param {String}    container  - Name of the container in which to store the Object
+ * @param {String}    name       - Name to store the object as
+ *
+ * @returns {Promise} Promise which will be resolved with the object
+ *                    or rejected if an error occurs.
+ */
+function getJsonObject(sClient, container, name) {
+    const deferred = q.defer();
+
+    sClient.getBlobToText(container, name, (err, data) => {
+        if (err) {
+            logger.error('error from getBlobToText:', err);
+            deferred.reject(err);
+        } else {
+            try {
+                logger.silly('getBlobToText result:', data);
+                deferred.resolve(JSON.parse(data));
+            } catch (jsonErr) {
+                deferred.reject(jsonErr);
+            }
+        }
+    });
+
+    return deferred.promise;
+}
+
+/**
+ * Stores a JSON object in Azure storage
+ *
+ * @param {Object}    sClient   - Azure storage instance
+ * @param {String}    container - Name of the container in which to store the Object
+ * @param {String}    name      - Name to store the object as
+ * @param {Object}    data      - Object to store
+ *
+ * @returns {Promise} Promise which will be resolved when the operation completes
+ *                    or rejected if an error occurs.
+ */
+function putJsonObject(sClient, container, name, data) {
+    logger.silly('putJsonObject data:', data);
+    const deferred = q.defer();
+    const jsonData = JSON.stringify(data);
+
+    sClient.createBlockBlobFromText(container, name, jsonData, (err) => {
+        if (err) {
+            deferred.reject(err);
+        } else {
+            deferred.resolve();
+        }
+    });
+
+    return deferred.promise;
 }
