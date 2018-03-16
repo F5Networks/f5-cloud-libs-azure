@@ -825,7 +825,8 @@ module.exports = {
                             mgmtIp: '10.11.12.13',
                             privateIp: '10.11.12.13',
                             external: true,
-                            hostname: '10.11.12.13_myHostname'
+                            hostname: '10.11.12.13_myHostname',
+                            providerVisible: true
                         }
                     });
                 })
