@@ -92,6 +92,9 @@ const performFailover = function () {
 
     putJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE, failoverDbBlob)
         .then(() => {
+            return notifyStateUpdate('delete');
+        })
+        .then(() => {
             return bigip.init(
                 'localhost',
                 'svc_user',
@@ -151,6 +154,11 @@ const performFailover = function () {
 
 storageInit(storageClient)
     .then(() => {
+        // Avoid the case where multiple tgactive scripts triggered
+        // within a short time frame may stomp on each other
+        return notifyStateUpdate('check');
+    })
+    .then(() => {
         return getJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE);
     })
     .then((results) => {
@@ -179,9 +187,11 @@ storageInit(storageClient)
     })
     .then(() => {
         logger.info('Failover finished successfully');
+        notifyStateUpdate('delete');
     })
     .catch((error) => {
         logger.error('Failover failed:', error.message);
+        notifyStateUpdate('delete');
     });
 
 const retryRoutes = function (routeTableGroup, routeTableName, routeName, routeParams) {
@@ -205,6 +215,46 @@ const retryRoutes = function (routeTableGroup, routeTableName, routeName, routeP
         })
     );
 };
+
+/**
+    * Creates local notification to alert other processes that state is being updated
+    *
+    * @param {String} action - Action to take for local notification function
+    *
+    * @returns {Promise} A promise which will be resolved after state update actions taken
+*/
+function notifyStateUpdate(action) {
+    const stateFile = '/config/cloud/failoverState';
+    const stateFileContents = 'Currently updating failover state status';
+    const deferred = q.defer();
+
+    if (action === 'delete') {
+        if (fs.existsSync(stateFile)) {
+            fs.unlinkSync(stateFile);
+        }
+        deferred.resolve();
+    } else if (action === 'check') {
+        // Check in intervals in case previous process is not done updating state
+        let ctr = 30;
+        const iObj = setInterval(() => {
+            if (!fs.existsSync(stateFile)) {
+                fs.writeFileSync(stateFile, stateFileContents, 'utf8');
+                deferred.resolve();
+                clearInterval(iObj);
+            } else {
+                logger.silly('State file exists, retrying after sleep:', ctr);
+            }
+            ctr -= 1;
+            if (ctr === 0) {
+                deferred.reject(new Error('State file still exists after retry period expired:', stateFile));
+                clearInterval(iObj);
+            }
+        }, 1000);
+    } else {
+        deferred.reject(new Error('Unknown action specified for notifyStateUpdate'));
+    }
+    return deferred.promise;
+}
 
 /**
     * Updates specified Azure user defined routes
