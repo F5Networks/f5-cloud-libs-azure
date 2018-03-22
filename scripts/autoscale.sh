@@ -179,18 +179,20 @@ if [ -f /config/cloud/master ]; then
     fi
 fi
 
-# Create Cluster Update iCall, first check if it already exists
+# Create cluster update iCall and script
+script_loc="/config/cloud/clusterUpdateScript.sh"
+if [[ ! -z $big_iq_lic_host ]]; then
+    echo "/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --autoscale \"--cloud azure --log-level $log_level --output /var/log/cloud/azure/autoScaleScript.log --host localhost --port $mgmt_port --user $user --password-url file://$passwd_file --password-encrypted $static $external_tag --license-pool --big-iq-host $big_iq_lic_host --big-iq-user $big_iq_lic_user --big-iq-password-uri file://$big_iq_lic_pwd_file --license-pool-name $big_iq_lic_pool --big-ip-mgmt-address $big_ip_ext_mgmt_addr --big-ip-mgmt-port $big_ip_ext_mgmt_port --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group --cluster-action update --device-group Sync $dns_options\"" > $script_loc
+else
+    echo "/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --autoscale \"--cloud azure --log-level $log_level --output /var/log/cloud/azure/autoScaleScript.log --host localhost --port $mgmt_port --user $user --password-url file://$passwd_file --password-encrypted $static $external_tag --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group --cluster-action update --device-group Sync $dns_options\"" > $script_loc
+fi
 icall_handler_name="ClusterUpdateHandler"
+icall_script_name="ClusterUpdate"
 tmsh list sys icall handler | grep $icall_handler_name
+# First check if iCall already exists
 if [[ $? != 0 ]]; then
-    script_loc="/config/cloud/clusterUpdateScript.sh"
-    if [[ ! -z $big_iq_lic_host ]]; then
-        echo "/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --autoscale \"--cloud azure --log-level $log_level --output /var/log/cloud/azure/autoScaleScript.log --host localhost --port $mgmt_port --user $user --password-url file://$passwd_file --password-encrypted $static $external_tag --license-pool --big-iq-host $big_iq_lic_host --big-iq-user $big_iq_lic_user --big-iq-password-uri file://$big_iq_lic_pwd_file --license-pool-name $big_iq_lic_pool --big-ip-mgmt-address $big_ip_ext_mgmt_addr --big-ip-mgmt-port $big_ip_ext_mgmt_port --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group --cluster-action update --device-group Sync $dns_options\"" > $script_loc
-    else
-        echo "/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --autoscale \"--cloud azure --log-level $log_level --output /var/log/cloud/azure/autoScaleScript.log --host localhost --port $mgmt_port --user $user --password-url file://$passwd_file --password-encrypted $static $external_tag --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group --cluster-action update --device-group Sync $dns_options\"" > $script_loc
-    fi
-    tmsh create sys icall script ClusterUpdate definition { exec bash $script_loc }
-    tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence now interval 120 script /Common/ClusterUpdate }
+    tmsh create sys icall script $icall_script_name definition { exec bash $script_loc }
+    tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence now interval 120 script /Common/$icall_script_name }
     tmsh save /sys config
 else
     echo "Appears the $icall_handler_name icall already exists!"
@@ -199,10 +201,11 @@ fi
 # Create iCall to run Application Insights Provider code if required
 if [[ ! -z $app_insights_key ]]; then
     icall_handler_name="MetricsCollectorHandler"
+    icall_script_name="MetricsCollector"
     tmsh list sys icall handler | grep $icall_handler_name
     if [[ $? != 0 ]]; then
-        tmsh create sys icall script MetricsCollector definition { exec /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs-azure/scripts/appInsightsProvider.js --key $app_insights_key --log-level info }
-        tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence now interval 60 script /Common/MetricsCollector }
+        tmsh create sys icall script $icall_script_name definition { exec /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs-azure/scripts/appInsightsProvider.js --key $app_insights_key --log-level info }
+        tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence now interval 60 script /Common/$icall_script_name }
         # Check to determine when the custom Application Insights metric just created (possibly)
         # is available for consumption by VM Scale sets
         if [ -f /config/cloud/master ]; then
