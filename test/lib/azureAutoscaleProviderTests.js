@@ -60,6 +60,7 @@ module.exports = {
 
 
         provider = new AzureAutoscaleProvider({ clOptions: { user: 'foo', password: 'bar' } });
+        provider.resourceGroup = 'my resource group';
 
         azureStorageMock.createBlobService = function createBlobService() {
             return {
@@ -202,6 +203,8 @@ module.exports = {
 
             provider.computeClient = azureComputeMock;
             provider.networkClient = azureNetworkMock;
+            provider.scaleSet = 'my scale set';
+            provider.resourceGroup = 'my resource group';
 
             callback();
         },
@@ -393,6 +396,8 @@ module.exports = {
             provider.computeClient = azureComputeMock;
             provider.networkClient = azureNetworkMock;
             provider.storageClient = azureStorageMock;
+            provider.scaleSet = 'my scale set';
+            provider.resourceGroup = 'my resource group';
 
             callback();
         },
