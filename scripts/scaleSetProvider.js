@@ -24,7 +24,7 @@ options
     .version('1.0.0')
 
     .option('--instance-id [type]', 'This Instance ID', '0')
-    .option('--nat-base [type]', 'mgmtnatpool.')
+    .option('--nat-base [type]', 'Specify the Nat Base', 'mgmtnatpool.')
     .option('--log-level [type]', 'Specify the Log Level', 'info')
     .parse(process.argv);
 
