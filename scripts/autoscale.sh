@@ -67,6 +67,9 @@ while [[ $# -gt 1 ]]; do
         --natBase)
             nat_base="--nat-base $2"
             shift 2;;
+        --backupUcs)
+            backup_ucs=$2
+            shift 2;;
         --logLevel)
             log_level=$2
             shift 2;;
@@ -175,7 +178,7 @@ if [ -f /config/cloud/master ]; then
             /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --script " --output /var/log/cloud/azure/deployScript.log --log-level $log_level --file /config/cloud/deploy_waf.sh --cl-args '$waf_script_args' --signal DEPLOY_SCRIPT_DONE "
         fi
         # Unblock the cluster sync
-        /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/autoscale.js --output /var/log/cloud/azure/autoScaleScript.log --log-level $log_level --host $self_ip --port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted $static $external_tag --cloud azure --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group --cluster-action unblock-sync
+        /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/autoscale.js --output /var/log/cloud/azure/autoScaleScript.log --log-level $log_level --host $self_ip --port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted --cloud azure --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group --cluster-action unblock-sync
     fi
 fi
 
@@ -188,12 +191,11 @@ else
 fi
 icall_handler_name="ClusterUpdateHandler"
 icall_script_name="ClusterUpdate"
-tmsh list sys icall handler | grep $icall_handler_name
 # First check if iCall already exists
+tmsh list sys icall handler | grep $icall_handler_name
 if [[ $? != 0 ]]; then
     tmsh create sys icall script $icall_script_name definition { exec bash $script_loc }
     tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence now interval 120 script /Common/$icall_script_name }
-    tmsh save /sys config
 else
     echo "Appears the $icall_handler_name icall already exists!"
 fi
@@ -202,6 +204,7 @@ fi
 if [[ ! -z $app_insights_key ]]; then
     icall_handler_name="MetricsCollectorHandler"
     icall_script_name="MetricsCollector"
+    # First check if iCall already exists
     tmsh list sys icall handler | grep $icall_handler_name
     if [[ $? != 0 ]]; then
         tmsh create sys icall script $icall_script_name definition { exec /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs-azure/scripts/appInsightsProvider.js --key $app_insights_key --log-level info }
@@ -233,6 +236,21 @@ if [[ ! -z $app_insights_key ]]; then
                 fi
             done
         fi
+    else
+        echo "Appears the $icall_handler_name icall already exists!"
+    fi
+fi
+
+# Create Backup UCS iCall
+if [[ ! -z $backup_ucs ]]; then
+    icall_handler_name="BackupUCSHandler"
+    icall_script_name="BackupUCS"
+    # First check if iCall already exists
+    tmsh list sys icall handler | grep $icall_handler_name
+    if [[ $? != 0 ]]; then
+        backup_ucs_cmd="/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --autoscale \"--cloud azure --log-level $log_level --output /var/log/cloud/azure/autoScaleScript.log --host localhost --port $mgmt_port --user $user --password-url file://$passwd_file --password-encrypted $static $external_tag --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group --cluster-action backup-ucs --max-ucs-files $backup_ucs\""
+        tmsh create sys icall script $icall_script_name definition { exec bash $backup_ucs_cmd }
+        tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence `date +%Y-%m-%d`:23:59:59 interval 86400 script /Common/$icall_script_name }
     else
         echo "Appears the $icall_handler_name icall already exists!"
     fi
