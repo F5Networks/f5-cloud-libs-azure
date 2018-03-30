@@ -30,7 +30,7 @@
     "request": "^2.83.0"
   },
   "peerDependencies": {
-    "@f5devcentral/f5-cloud-libs": "^4.0.0-alpha.5"
+    "@f5devcentral/f5-cloud-libs": "^4.0.0-beta.6"
   },
   "devDependencies": {
     "eslint": "^4.16.0",
