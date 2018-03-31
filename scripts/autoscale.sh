@@ -241,15 +241,15 @@ if [[ ! -z $app_insights_key ]]; then
     fi
 fi
 
-# Create Backup UCS iCall
+# Create Backup UCS iCall and script
 if [[ ! -z $backup_ucs ]]; then
+    script_loc="/config/cloud/backupUcsScript.sh"
+    echo "/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --autoscale \"--cloud azure --log-level $log_level --output /var/log/cloud/azure/autoScaleScript.log --host localhost --port $mgmt_port --user $user --password-url file://$passwd_file --password-encrypted $static $external_tag --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group --cluster-action backup-ucs --max-ucs-files $backup_ucs\"" > $script_loc
     icall_handler_name="BackupUCSHandler"
     icall_script_name="BackupUCS"
-    script_loc="/config/cloud/backupUcsScript.sh"
     # First check if iCall already exists
     tmsh list sys icall handler | grep $icall_handler_name
     if [[ $? != 0 ]]; then
-        echo "/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --autoscale \"--cloud azure --log-level $log_level --output /var/log/cloud/azure/autoScaleScript.log --host localhost --port $mgmt_port --user $user --password-url file://$passwd_file --password-encrypted $static $external_tag --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group --cluster-action backup-ucs --max-ucs-files $backup_ucs\"" > $script_loc
         tmsh create sys icall script $icall_script_name definition { exec bash $script_loc }
         tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence `date +%Y-%m-%d`:23:59:59 interval 86400 script /Common/$icall_script_name }
     else
