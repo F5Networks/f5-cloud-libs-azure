@@ -25,6 +25,7 @@ options
 
     .option('--key [type]', 'Application Insights Key', 'specify_key')
     .option('--log-level [type]', 'Specify the Log Level', 'info')
+    .option('--mgmt-port [type]', 'Specify the BIG-IP mgmt port', '8443')
     .parse(process.argv);
 
 const logFile = '/var/log/cloud/azure/azureMetricsCollector.log';
@@ -51,7 +52,7 @@ bigip.init(
     'file:///config/cloud/.passwd',
     {
         passwordIsUrl: true,
-        port: '8443',
+        port: options.mgmtPort,
         passwordEncrypted: true
     }
 )

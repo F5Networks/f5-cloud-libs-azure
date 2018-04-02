@@ -139,7 +139,7 @@ echo "INSTANCE NAME CHOSEN: $instance"
 
 # Execute Application Insights Provider early to allow custom metrics to begin appearing
 if [[ ! -z $app_insights_key ]]; then
-    /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs-azure/scripts/appInsightsProvider.js --key $app_insights_key --log-level info
+    /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs-azure/scripts/appInsightsProvider.js --key $app_insights_key --mgmt-port $dfl_mgmt_port --log-level info
 fi
 
 # Check if PAYG or BYOL (via BIG-IQ)
@@ -207,7 +207,7 @@ if [[ ! -z $app_insights_key ]]; then
     # First check if iCall already exists
     tmsh list sys icall handler | grep $icall_handler_name
     if [[ $? != 0 ]]; then
-        tmsh create sys icall script $icall_script_name definition { exec /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs-azure/scripts/appInsightsProvider.js --key $app_insights_key --log-level info }
+        tmsh create sys icall script $icall_script_name definition { exec /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs-azure/scripts/appInsightsProvider.js --key $app_insights_key --mgmt-port $mgmt_port --log-level info }
         tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence now interval 60 script /Common/$icall_script_name }
         # Check to determine when the custom Application Insights metric just created (possibly)
         # is available for consumption by VM Scale sets
