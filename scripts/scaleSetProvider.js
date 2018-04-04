@@ -44,21 +44,22 @@ const clientId = credentialsFile.clientId;
 const tenantId = credentialsFile.tenantId;
 const secret = credentialsFile.secret;
 const resourceGroupName = credentialsFile.resourceGroupName;
+const vmssName = credentialsFile.vmssName;
 
 const loadBalancerName = credentialsFile.loadBalancerName;
 const instanceId = options.instanceId;
 const inboundNatRuleBase = options.natBase;
-let instancePort;
 
 const credentials = new msRestAzure.ApplicationTokenCredentials(clientId, tenantId, secret);
-const networkClient = new NetworkManagementClient(credentials, subscriptionId);
+this.networkClient = new NetworkManagementClient(credentials, subscriptionId);
 this.logger = logger;
 const bigip = new BigIp({ logger: this.logger });
 
 /** Log some basic information
  * Instance ID, Load Balancer Name
 */
-logger.info(`Instance ID: ${instanceId} Load Balancer Name: ${loadBalancerName}`);
+logger.debug('Instance ID:', instanceId, 'Load Balancer Name:', loadBalancerName,
+    'VMSS Name:', vmssName);
 
 bigip.init(
     'localhost',
@@ -71,28 +72,77 @@ bigip.init(
     }
 )
     .then(() => {
-        Promise.all([
-            listDeploymentALB(resourceGroupName, loadBalancerName),
-        ])
+        const promises = [];
+        if (loadBalancerName) {
+            promises.push(listDeploymentALB(this.networkClient, resourceGroupName, loadBalancerName));
+        } else {
+            promises.push(q(''));
+        }
+        promises.push(getPublicIpFromScaleSet(this.networkClient, resourceGroupName, vmssName, instanceId));
+
+        Promise.all(promises)
             .then((results) => {
-                instancePort = getNatRulePort(results[0], instanceId, inboundNatRuleBase);
-                logger.info(`Port Selected: ${instancePort}`);
+                const instanceInfo = {};
+                instanceInfo.port = getNatRulePort(results[0], instanceId, inboundNatRuleBase);
+                instanceInfo.publicIp = results[1];
+
+                logger.info('instanceInfo:', instanceInfo);
             })
             .catch((err) => {
-                logger.error(err);
+                const error = err.message ? err.message : err;
+                logger.error(error);
             });
     });
 
 
 /**
+ * Gets the public IP address of this VM from the VM Scale Set Resource
+ *
+ * @param {Object} networkClient - Azure network client
+ * @param {String} resourceGroup - Name of the resource group
+ * @param {Object} vName         - Name of the VMSS
+ * @param {String} ir            - VMSS ID
+ * @returns {List} A list of public IP addresses
+*/
+function getPublicIpFromScaleSet(networkClient, resourceGroup, vName, id) {
+    const deferred = q.defer();
+    const ipAddress = [];
+
+    networkClient.publicIPAddresses.listVirtualMachineScaleSetPublicIPAddresses(resourceGroup,
+        vName, (err, result) => {
+            if (err) {
+                deferred.reject(err);
+                return;
+            }
+
+            result.forEach((pubIp) => {
+                const pubIpId = pubIp.id.split('/');
+                const vmssVmId = pubIpId[10];
+                // If matches our ID, add to list
+                if (id === vmssVmId) {
+                    ipAddress.push(pubIp.ipAddress);
+                }
+            });
+            if (ipAddress.length) {
+                deferred.resolve(ipAddress[0]);
+            }
+            // just resolve ipAddress if we dont have any matches
+            deferred.resolve(ipAddress);
+        });
+
+    return deferred.promise;
+}
+
+/**
  * List this deployments Azure Load balancer
  *
- * @param {String} rgName - Name of the resource group
- * @param {String} lbName - Name of the load balancer (should be this scale sets LB)
+  *@param {String} networkClient - Azure network client
+ * @param {String} rgName        - Name of the resource group
+ * @param {String} lbName        - Name of the load balancer (should be this scale sets LB)
  *
  * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
 */
-function listDeploymentALB(rgName, lbName) {
+function listDeploymentALB(networkClient, rgName, lbName) {
     const deferred = q.defer();
 
     networkClient.loadBalancers.get(rgName, lbName, (error, data) => {
@@ -109,20 +159,22 @@ function listDeploymentALB(rgName, lbName) {
  * Determine this instances front end port
  *
  * @param {String} loadBalancerConfig - This deployments load balancer config (JSON object)
- * @param {String} instId - This specific VM's instance ID within the scale set
- * @param {String} natRuleBase - Nat Rule prefix (text prior to the instance ID)
+ * @param {String} instId             - This specific VM's instance ID within the scale set
+ * @param {String} natRuleBase        - Nat Rule prefix (text prior to the instance ID)
  *
- * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+ * @returns {String} The front end port of the instancesId
 */
 function getNatRulePort(loadBalancerConfig, instId, natRuleBase) {
-    const instanceNatRule = natRuleBase + instId;
-    const rules = loadBalancerConfig.inboundNatRules;
     let instanceFrontendPort = 'none';
+    if (loadBalancerConfig) {
+        const instanceNatRule = natRuleBase + instId;
+        const rules = loadBalancerConfig.inboundNatRules;
 
-    Object.keys(rules).forEach((rule) => {
-        if (rules[rule].name === instanceNatRule) {
-            instanceFrontendPort = rules[rule].frontendPort;
-        }
-    });
+        Object.keys(rules).forEach((rule) => {
+            if (rules[rule].name === instanceNatRule) {
+                instanceFrontendPort = rules[rule].frontendPort;
+            }
+        });
+    }
     return instanceFrontendPort;
 }

@@ -145,15 +145,18 @@ fi
 # Check if PAYG or BYOL (via BIG-IQ)
 if [[ ! -z $big_iq_lic_host ]]; then
     echo "Licensing via BIG-IQ: $big_iq_lic_host"
+    instance_id=$(echo $instance | grep -E -o "_.{0,3}" | sed 's/_//;s/\"//g')
+    jq -c .instanceId=$instance_id $azure_secret_file > tmp.$$.json && mv tmp.$$.json $azure_secret_file
     # License via BIG-IQ
     if [[ $big_ip_ext_mgmt_port == *"via-api"* ]]; then
-        ## Have to go get MGMT port ourselves based on instance we are on ##
-        # Add Instance ID to file as node provider expects it to be there
-        instance_id=$(echo $instance | grep -E -o "_.{0,3}" | sed 's/_//;s/\"//g')
-        jq -c .instanceId=$instance_id $azure_secret_file > tmp.$$.json && mv tmp.$$.json $azure_secret_file
-        # Make Azure Rest API call to get frontend port
-        ext_port_via_api=$(/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs-azure/scripts/scaleSetProvider.js --instance-id $instance_id $nat_base)
-        big_ip_ext_mgmt_port=$(echo $ext_port_via_api | grep 'Port Selected: ' | awk -F 'Selected: ' '{print $2}')
+        ## Have to go get MGMT port from inbound nat rules on ALB ##
+        via_api=$(/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs-azure/scripts/scaleSetProvider.js --instance-id $instance_id $nat_base)
+        big_ip_ext_mgmt_port=$(echo $via_api | awk -F 'instanceInfo: ' '{print $2}' | jq .port --raw-output)
+    fi
+    if [[ $big_ip_ext_mgmt_addr == *"via-api"* ]]; then
+        ## Have to go get MGMT Public IP from VMSS ##
+        via_api=$(/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs-azure/scripts/scaleSetProvider.js --instance-id $instance_id $nat_base)
+        big_ip_ext_mgmt_addr=$(echo $via_api | awk -F 'instanceInfo: ' '{print $2}' | jq .publicIp --raw-output)
     fi
     echo "BIG-IP via BIG-IQ Info... IP: $big_ip_ext_mgmt_addr Port: $big_ip_ext_mgmt_port"
     /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --onboard "--output /var/log/cloud/azure/onboard.log --log-level $log_level --host $self_ip --port $dfl_mgmt_port --ssl-port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted --hostname $instance.azuresecurity.com --license-pool --big-iq-host $big_iq_lic_host --big-iq-user $big_iq_lic_user --big-iq-password-uri file://$big_iq_lic_pwd_file --license-pool-name $big_iq_lic_pool --big-ip-mgmt-address $big_ip_ext_mgmt_addr --big-ip-mgmt-port $big_ip_ext_mgmt_port --ntp $ntp_server --tz $time_zone --db provision.1nicautoconfig:disable --db tmm.maxremoteloglength:2048 $usage_analytics --module $mod_prov --module afm:none --no-reboot --signal ONBOARD_DONE" --autoscale "--wait-for ONBOARD_DONE --output /var/log/cloud/azure/autoScaleScript.log --log-level $log_level --host $self_ip --port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted --cloud azure --license-pool --big-iq-host $big_iq_lic_host --big-iq-user $big_iq_lic_user --big-iq-password-uri file://$big_iq_lic_pwd_file --license-pool-name $big_iq_lic_pool --big-ip-mgmt-address $big_ip_ext_mgmt_addr --big-ip-mgmt-port $big_ip_ext_mgmt_port $static $external_tag --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,resourceGroup:$resource_group --cluster-action join --device-group Sync $block_sync $dns_options"
