@@ -403,39 +403,29 @@ module.exports = {
         },
 
         testBasic(test) {
-            test.expect(1);
+            test.expect(19);
             provider.getInstances()
                 .then((instances) => {
-                    test.deepEqual(instances, {
-                        123: {
-                            mgmtIp: '5.6.7.8',
-                            privateIp: '5.6.7.8',
-                            publicIp: '123.456.789.1',
-                            hostname: '5.6.7.8_myHostname',
-                            machineId: undefined,
-                            providerVisible: true,
-                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
-                            version: undefined,
-                            isMaster: false,
-                            external: false,
-                            lastBackup: new Date(1970, 1, 1).getTime(),
-                            versionOk: true
-                        },
-                        456: {
-                            mgmtIp: '7.8.9.0',
-                            privateIp: '7.8.9.0',
-                            publicIp: undefined,
-                            hostname: '7.8.9.0_myHostname',
-                            machineId: undefined,
-                            providerVisible: true,
-                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
-                            version: undefined,
-                            isMaster: false,
-                            external: false,
-                            lastBackup: new Date(1970, 1, 1).getTime(),
-                            versionOk: true
-                        }
-                    });
+                    test.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
+                    test.strictEqual(instances['123'].privateIp, '5.6.7.8');
+                    test.strictEqual(instances['123'].publicIp, '123.456.789.1');
+                    test.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
+                    test.strictEqual(instances['123'].providerVisible, true);
+                    test.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    test.strictEqual(instances['123'].isMaster, false);
+                    test.strictEqual(instances['123'].external, false);
+                    test.strictEqual(instances['123'].lastBackup, new Date(1970, 1, 1).getTime());
+                    test.strictEqual(instances['123'].versionOk, true);
+
+                    test.strictEqual(instances['456'].mgmtIp, '7.8.9.0');
+                    test.strictEqual(instances['456'].privateIp, '7.8.9.0');
+                    test.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
+                    test.strictEqual(instances['456'].providerVisible, true);
+                    test.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    test.strictEqual(instances['456'].isMaster, false);
+                    test.strictEqual(instances['456'].external, false);
+                    test.strictEqual(instances['456'].lastBackup, new Date(1970, 1, 1).getTime());
+                    test.strictEqual(instances['456'].versionOk, true);
                 })
                 .catch((err) => {
                     test.ok(false, err);
@@ -557,39 +547,27 @@ module.exports = {
                 }
             };
 
-            test.expect(1);
+            test.expect(17);
             provider.getInstances()
                 .then((instances) => {
-                    test.deepEqual(instances, {
-                        123: {
-                            mgmtIp: '5.6.7.8',
-                            privateIp: '5.6.7.8',
-                            publicIp: '123.456.789.1',
-                            hostname: '5.6.7.8_myHostname',
-                            machineId: undefined,
-                            providerVisible: false,
-                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
-                            version: undefined,
-                            isMaster: false,
-                            external: false,
-                            lastBackup: new Date(1970, 1, 1).getTime(),
-                            versionOk: true
-                        },
-                        456: {
-                            mgmtIp: '7.8.9.0',
-                            privateIp: '7.8.9.0',
-                            publicIp: undefined,
-                            hostname: '7.8.9.0_myHostname',
-                            machineId: undefined,
-                            providerVisible: true,
-                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
-                            version: undefined,
-                            isMaster: false,
-                            external: false,
-                            lastBackup: new Date(1970, 1, 1).getTime(),
-                            versionOk: true
-                        }
-                    });
+                    test.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
+                    test.strictEqual(instances['123'].privateIp, '5.6.7.8');
+                    test.strictEqual(instances['123'].publicIp, '123.456.789.1');
+                    test.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
+                    test.strictEqual(instances['123'].providerVisible, false);
+                    test.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    test.strictEqual(instances['123'].isMaster, false);
+                    test.strictEqual(instances['123'].external, false);
+                    test.strictEqual(instances['123'].versionOk, true);
+
+                    test.strictEqual(instances['456'].mgmtIp, '7.8.9.0');
+                    test.strictEqual(instances['456'].privateIp, '7.8.9.0');
+                    test.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
+                    test.strictEqual(instances['456'].providerVisible, true);
+                    test.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    test.strictEqual(instances['456'].isMaster, false);
+                    test.strictEqual(instances['456'].external, false);
+                    test.strictEqual(instances['456'].versionOk, true);
                 })
                 .catch((err) => {
                     test.ok(false, err);
@@ -638,39 +616,27 @@ module.exports = {
                 }
             };
 
-            test.expect(1);
+            test.expect(17);
             provider.getInstances()
                 .then((instances) => {
-                    test.deepEqual(instances, {
-                        123: {
-                            mgmtIp: '5.6.7.8',
-                            privateIp: '5.6.7.8',
-                            publicIp: '123.456.789.1',
-                            hostname: '5.6.7.8_myHostname',
-                            machineId: undefined,
-                            providerVisible: true,
-                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
-                            version: undefined,
-                            isMaster: false,
-                            external: false,
-                            lastBackup: new Date(1970, 1, 1).getTime(),
-                            versionOk: true
-                        },
-                        456: {
-                            mgmtIp: '7.8.9.0',
-                            privateIp: '7.8.9.0',
-                            publicIp: undefined,
-                            hostname: '7.8.9.0_myHostname',
-                            machineId: undefined,
-                            providerVisible: false,
-                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
-                            version: undefined,
-                            isMaster: false,
-                            external: false,
-                            lastBackup: new Date(1970, 1, 1).getTime(),
-                            versionOk: true
-                        }
-                    });
+                    test.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
+                    test.strictEqual(instances['123'].privateIp, '5.6.7.8');
+                    test.strictEqual(instances['123'].publicIp, '123.456.789.1');
+                    test.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
+                    test.strictEqual(instances['123'].providerVisible, true);
+                    test.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    test.strictEqual(instances['123'].isMaster, false);
+                    test.strictEqual(instances['123'].external, false);
+                    test.strictEqual(instances['123'].versionOk, true);
+
+                    test.strictEqual(instances['456'].mgmtIp, '7.8.9.0');
+                    test.strictEqual(instances['456'].privateIp, '7.8.9.0');
+                    test.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
+                    test.strictEqual(instances['456'].providerVisible, false);
+                    test.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    test.strictEqual(instances['456'].isMaster, false);
+                    test.strictEqual(instances['456'].external, false);
+                    test.strictEqual(instances['456'].versionOk, true);
                 })
                 .catch((err) => {
                     test.ok(false, err);
@@ -704,39 +670,27 @@ module.exports = {
                 }
             };
 
-            test.expect(1);
+            test.expect(17);
             provider.getInstances()
                 .then((instances) => {
-                    test.deepEqual(instances, {
-                        123: {
-                            mgmtIp: '5.6.7.8',
-                            privateIp: '5.6.7.8',
-                            publicIp: '123.456.789.1',
-                            hostname: '5.6.7.8_myHostname',
-                            machineId: undefined,
-                            providerVisible: true,
-                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
-                            version: undefined,
-                            isMaster: false,
-                            external: false,
-                            lastBackup: new Date(1970, 1, 1).getTime(),
-                            versionOk: true
-                        },
-                        456: {
-                            mgmtIp: '7.8.9.0',
-                            privateIp: '7.8.9.0',
-                            publicIp: undefined,
-                            hostname: '7.8.9.0_myHostname',
-                            machineId: undefined,
-                            providerVisible: true,
-                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
-                            version: undefined,
-                            isMaster: false,
-                            external: false,
-                            lastBackup: new Date(1970, 1, 1).getTime(),
-                            versionOk: true
-                        }
-                    });
+                    test.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
+                    test.strictEqual(instances['123'].privateIp, '5.6.7.8');
+                    test.strictEqual(instances['123'].publicIp, '123.456.789.1');
+                    test.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
+                    test.strictEqual(instances['123'].providerVisible, true);
+                    test.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    test.strictEqual(instances['123'].isMaster, false);
+                    test.strictEqual(instances['123'].external, false);
+                    test.strictEqual(instances['123'].versionOk, true);
+
+                    test.strictEqual(instances['456'].mgmtIp, '7.8.9.0');
+                    test.strictEqual(instances['456'].privateIp, '7.8.9.0');
+                    test.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
+                    test.strictEqual(instances['456'].providerVisible, true);
+                    test.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    test.strictEqual(instances['456'].isMaster, false);
+                    test.strictEqual(instances['456'].external, false);
+                    test.strictEqual(instances['456'].versionOk, true);
                 })
                 .catch((err) => {
                     test.ok(false, err);
@@ -804,46 +758,27 @@ module.exports = {
                 );
             };
 
-            test.expect(1);
+            test.expect(17);
             provider.getInstances({ externalTag })
                 .then((instances) => {
-                    test.deepEqual(instances, {
-                        123: {
-                            mgmtIp: '5.6.7.8',
-                            privateIp: '5.6.7.8',
-                            publicIp: '123.456.789.1',
-                            hostname: '5.6.7.8_myHostname',
-                            machineId: undefined,
-                            providerVisible: true,
-                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
-                            version: undefined,
-                            isMaster: false,
-                            external: false,
-                            lastBackup: new Date(1970, 1, 1).getTime(),
-                            versionOk: true
-                        },
-                        456: {
-                            mgmtIp: '7.8.9.0',
-                            privateIp: '7.8.9.0',
-                            publicIp: undefined,
-                            hostname: '7.8.9.0_myHostname',
-                            machineId: undefined,
-                            providerVisible: true,
-                            status: AutoscaleInstance.INSTANCE_STATUS_OK,
-                            version: undefined,
-                            isMaster: false,
-                            external: false,
-                            lastBackup: new Date(1970, 1, 1).getTime(),
-                            versionOk: true
-                        },
-                        'myResourceGroup-myInterface': {
-                            mgmtIp: '10.11.12.13',
-                            privateIp: '10.11.12.13',
-                            external: true,
-                            hostname: '10.11.12.13_myHostname',
-                            providerVisible: true
-                        }
-                    });
+                    test.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
+                    test.strictEqual(instances['123'].privateIp, '5.6.7.8');
+                    test.strictEqual(instances['123'].publicIp, '123.456.789.1');
+                    test.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
+                    test.strictEqual(instances['123'].providerVisible, true);
+                    test.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    test.strictEqual(instances['123'].isMaster, false);
+                    test.strictEqual(instances['123'].external, false);
+                    test.strictEqual(instances['123'].versionOk, true);
+
+                    test.strictEqual(instances['456'].mgmtIp, '7.8.9.0');
+                    test.strictEqual(instances['456'].privateIp, '7.8.9.0');
+                    test.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
+                    test.strictEqual(instances['456'].providerVisible, true);
+                    test.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    test.strictEqual(instances['456'].isMaster, false);
+                    test.strictEqual(instances['456'].external, false);
+                    test.strictEqual(instances['456'].versionOk, true);
                 })
                 .catch((err) => {
                     test.ok(false, err);
