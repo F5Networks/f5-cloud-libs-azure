@@ -474,7 +474,6 @@ function matchNics(nics, vs, selfIps, tgs, global) {
     let qp;
     let s;
     let t;
-    let address;
     const entries = tgs.entries;
     const hostname = global.hostname;
     let ipConfigurations;
@@ -487,13 +486,13 @@ function matchNics(nics, vs, selfIps, tgs, global) {
     let theirNsg;
     let theirTags;
     let theirIpForwarding;
-    let virtualAddressTrafficGroup;
 
     let associateArr = [];
     let disassociateArr = [];
     let myNicArr = [];
     const myNicsArr = [];
     const mySelfIpArr = [];
+    const floatingSelfIpArr = [];
     const myTrafficGroupsArr = [];
     let theirNicArr = [];
     const theirNicsArr = [];
@@ -532,12 +531,6 @@ function matchNics(nics, vs, selfIps, tgs, global) {
         );
     };
 
-    selfIps.forEach((self) => {
-        mySelfIpArr.push({
-            address: self.address.split('/')[0]
-        });
-    });
-
     Object.keys(entries).forEach((key) => {
         if (entries[key].nestedStats.entries.deviceName.description.includes(hostname)
         && entries[key].nestedStats.entries.failoverState.description === 'active') {
@@ -547,15 +540,52 @@ function matchNics(nics, vs, selfIps, tgs, global) {
         }
     });
 
+    selfIps.forEach((self) => {
+        let tgMatch = false;
+        myTrafficGroupsArr.forEach((tgmember) => {
+            if (tgmember.trafficGroup.includes(self.trafficGroup)) {
+                tgMatch = true;
+            }
+        });
+
+        if (tgMatch) {
+            floatingSelfIpArr.push({
+                address: self.address.split('/')[0],
+                trafficGroup: self.trafficGroup
+            });
+        } else {
+            mySelfIpArr.push({
+                address: self.address.split('/')[0]
+            });
+        }
+    });
+
     if (!vs.length) {
         logger.error('No virtual addresses exist, create them prior to failover.');
     } else {
         vs.forEach((virtualAddress) => {
-            address = virtualAddress.address;
-            virtualAddressTrafficGroup = virtualAddress.trafficGroup;
+            const address = virtualAddress.address;
+            const tg = virtualAddress.trafficGroup;
 
             myTrafficGroupsArr.forEach((tgmember) => {
-                if (tgmember.trafficGroup.includes(virtualAddressTrafficGroup)) {
+                if (tgmember.trafficGroup.includes(tg)) {
+                    trafficGroupIpArr.push({
+                        address
+                    });
+                }
+            });
+        });
+    }
+
+    if (!floatingSelfIpArr.length) {
+        logger.debug('No floating self IPs exist, just continue.');
+    } else {
+        floatingSelfIpArr.forEach((floatingSelf) => {
+            const address = floatingSelf.address;
+            const tg = floatingSelf.trafficGroup;
+
+            myTrafficGroupsArr.forEach((tgmember) => {
+                if (tgmember.trafficGroup.includes(tg)) {
                     trafficGroupIpArr.push({
                         address
                     });
