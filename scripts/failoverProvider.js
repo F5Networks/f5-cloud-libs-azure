@@ -83,7 +83,10 @@ let failoverDbBlob = {
     status: '',
     timeStamp: '',
     desiredConfiguration: {
-        nicArr: {}
+        nicArr: {
+            disassociateArr: [],
+            associateArr: []
+        }
     }
 };
 
@@ -165,7 +168,7 @@ storageInit(storageClient)
         failoverDbBlob = results;
 
         logger.debug('Failover database status:', failoverDbBlob.status);
-        if (results.status === FAILOVER_STATUS_RUN || results.status === FAILOVER_STATUS_FAIL) {
+        if (failoverDbBlob.status === FAILOVER_STATUS_RUN || failoverDbBlob.status === FAILOVER_STATUS_FAIL) {
             if (typeof failoverDbBlob.timeStamp !== 'undefined' && failoverDbBlob.timeStamp !== '') {
                 const differenceInMs = new Date() - Date.parse(failoverDbBlob.timeStamp);
                 logger.silly('differenceInMs:', differenceInMs, 'MAX_RUNNING_TASK_MS:', MAX_RUNNING_TASK_MS);
@@ -688,12 +691,14 @@ function matchNics(nics, vs, selfIps, tgs, global) {
 
     if (recoverPreviousTask) {
         // Replace current configuration with previous desired configuration from failover database
-        disassociateArr = failoverDbBlob.desiredConfiguration.nicArr.disassociateArr;
-        associateArr = failoverDbBlob.desiredConfiguration.nicArr.associateArr;
+        if (failoverDbBlob.desiredConfiguration.nicArr.disassociateArr &&
+            failoverDbBlob.desiredConfiguration.nicArr.associateArr) {
+            disassociateArr = failoverDbBlob.desiredConfiguration.nicArr.disassociateArr;
+            associateArr = failoverDbBlob.desiredConfiguration.nicArr.associateArr;
+        }
     }
     // Update failover database with desired configuration prior to updating NICs
-    if (disassociateArr.length && associateArr.length) {
-        failoverDbBlob.desiredConfiguration.nicArr = {};
+    if (disassociateArr && disassociateArr.length && associateArr && associateArr.length) {
         failoverDbBlob.desiredConfiguration.nicArr.disassociateArr = disassociateArr;
         failoverDbBlob.desiredConfiguration.nicArr.associateArr = associateArr;
     }
