@@ -38,9 +38,14 @@ let azureStorageMock;
 let azureComputeMock;
 let bigIpMock;
 let utilMock;
+let localCryptoUtilMock;
 let AzureAutoscaleProvider;
 let provider;
 let createBlobFromTextParams;
+
+let receivedClientId;
+let receivedSecret;
+let receivedTenantId;
 
 // Our tests cause too many event listeners. Turn off the check.
 process.setMaxListeners(0);
@@ -49,6 +54,7 @@ module.exports = {
     setUp(callback) {
         /* eslint-disable import/no-extraneous-dependencies, import/no-unresolved, global-require */
         utilMock = require('@f5devcentral/f5-cloud-libs').util;
+        localCryptoUtilMock = require('@f5devcentral/f5-cloud-libs').localCryptoUtil;
         azureMock = require('ms-rest-azure');
         azureNetworkMock = require('azure-arm-network');
         azureStorageMock = require('azure-storage');
@@ -99,6 +105,9 @@ module.exports = {
                 aTenantId,
                 cb
             ) {
+                receivedClientId = aClientId;
+                receivedSecret = aSecret;
+                receivedTenantId = aTenantId;
                 cb(null, { signRequest() {} });
             };
 
@@ -112,27 +121,37 @@ module.exports = {
                 azCredentialsUrl: 'file:///foo/bar'
             };
 
-            let receivedClientId;
-            let receivedSecret;
-            let receivedTenantId;
-
-            azureMock.loginWithServicePrincipalSecret = function loginWithServicePrincipalSecret(
-                aClientId,
-                aSecret,
-                aTenantId,
-                cb
-            ) {
-                receivedClientId = clientId;
-                receivedSecret = secret;
-                receivedTenantId = tenantId;
-                cb(null, { signRequest() {} });
-            };
-
             provider.init(providerOptions)
                 .then(() => {
                     test.strictEqual(receivedClientId, clientId);
                     test.strictEqual(receivedSecret, secret);
                     test.strictEqual(receivedTenantId, tenantId);
+                    test.done();
+                });
+        },
+
+        testAzureLoginSecretId(test) {
+            const storedSecret = 'my secret from rest';
+            const providerOptions = {
+                clientId,
+                tenantId,
+                subscriptionId,
+                secretId: 'foo',
+                scaleSet: 'myScaleSet',
+                resourceGroup: 'myResourceGroup'
+            };
+
+            localCryptoUtilMock.decryptDataFromRestStorage = function decryptDataFromRestStorage() {
+                return q(
+                    {
+                        servicePrincipalSecret: storedSecret
+                    }
+                );
+            };
+
+            provider.init(providerOptions)
+                .then(() => {
+                    test.strictEqual(receivedSecret, storedSecret);
                     test.done();
                 });
         },
