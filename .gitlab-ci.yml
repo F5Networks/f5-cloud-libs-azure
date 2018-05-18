@@ -40,6 +40,9 @@ package:
         - /^release-.*/
         - /^hf-.*/
     script:
+        # We have an old version of npm on the build machines which installs peer dependencies.
+        # We do not want this
+        - rm -rf node_modules/@f5devcentral
         - npm run package -- --no-deps
     artifacts:
         name: ${CI_PROJECT_NAME}-${CI_BUILD_REF}

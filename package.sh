@@ -4,10 +4,6 @@ if [[ $1 == '--no-deps' ]]; then
     npm install --production
 fi
 
-# We have an old version of npm on the build machines which installs peer dependencies.
-# We do not want this/
-rm -rf node_modules/@f5devcentral
-
 tar -C .. --exclude=".git*" --exclude="test" --exclude="${PWD##*/}/dist" --exclude="build" --exclude="doc" --exclude="gitHooks" -cf dist/f5-cloud-libs-azure.tar f5-cloud-libs-azure
 
 # Suppress gzips timetamp in the tarball - otherwise the digest hash changes on each
