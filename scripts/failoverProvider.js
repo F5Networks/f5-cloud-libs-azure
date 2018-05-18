@@ -8,6 +8,7 @@ const q = require('q');
 const msRestAzure = require('ms-rest-azure');
 const NetworkManagementClient = require('azure-arm-network');
 const azureStorage = require('azure-storage');
+const azureEnvironment = require('ms-rest-azure/lib/azureEnvironment');
 const f5CloudLibs = require('@f5devcentral/f5-cloud-libs');
 
 const Logger = f5CloudLibs.logger;
@@ -43,16 +44,37 @@ if (fs.existsSync('/config/cloud/.azCredentials')) {
     const secret = credentialsFile.secret;
     const subscriptionId = credentialsFile.subscriptionId;
     const tenantId = credentialsFile.tenantId;
+    const location = credentialsFile.location;
+    uniqueLabel = credentialsFile.uniqueLabel;
+    resourceGroup = credentialsFile.resourceGroupName;
+    // Detect environment based on location (region), default to Azure
+    let environment = azureEnvironment.Azure;
+    if (location) {
+        logger.silly(`Location: ${location}`);
+        if (location.includes('usgov') || location.includes('usdod') || location.includes('ussec')) {
+            environment = azureEnvironment.AzureUSGovernment;
+        } else if (location.includes('china')) {
+            environment = azureEnvironment.AzureChina;
+        } else if (location.includes('germany')) {
+            environment = azureEnvironment.AzureGermanCloud;
+        }
+    }
+
     storageAccount = credentialsFile.storageAccount;
     storageKey = credentialsFile.storageKey;
     storageClient = azureStorage.createBlobService(
         storageAccount,
-        storageKey
+        storageKey,
+        `${storageAccount}.blob${environment.storageEndpointSuffix}`
     );
-    const credentials = new msRestAzure.ApplicationTokenCredentials(clientId, tenantId, secret);
-    uniqueLabel = credentialsFile.uniqueLabel;
-    resourceGroup = credentialsFile.resourceGroupName;
-    networkClient = new NetworkManagementClient(credentials, subscriptionId);
+    const credentials = new msRestAzure.ApplicationTokenCredentials(
+        clientId, tenantId, secret, { environment }
+    );
+    networkClient = new NetworkManagementClient(
+        credentials,
+        subscriptionId,
+        environment.resourceManagerEndpointUrl
+    );
 } else {
     logger.error('Credentials file not found');
     return;
