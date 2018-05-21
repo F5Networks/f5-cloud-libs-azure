@@ -51,11 +51,17 @@ if (fs.existsSync('/config/cloud/.azCredentials')) {
     let environment = azureEnvironment.Azure;
     if (location) {
         logger.silly(`Location: ${location}`);
+        // Azure US Government cloud regions: US DoD Central, US DoD East, US Gov Arizona,
+        // US Gov Iowa, US Gov Non-Regional, US Gov Texas, US Gov Virginia, US Sec East1, US Sec Wes
         if (location.includes('usgov') || location.includes('usdod') || location.includes('ussec')) {
             environment = azureEnvironment.AzureUSGovernment;
+        // Azure China cloud regions: China East, China North
         } else if (location.includes('china')) {
             environment = azureEnvironment.AzureChina;
-        } else if (location.includes('germany')) {
+        // Azure Germany cloud regions: Germany Central, Germany Non-Regional, Germany Northeast
+        // Note: There is Azure commercial cloud regions in germany so have to be specific
+        } else if (location.includes('germanycentral') || location.includes('germanynortheast') ||
+            location.includes('germanynonregional')) {
             environment = azureEnvironment.AzureGermanCloud;
         }
     }
