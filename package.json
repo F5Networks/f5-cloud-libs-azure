@@ -1,6 +1,6 @@
 {
   "name": "@f5devcentral/f5-cloud-libs-azure",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Azure implementation of f5-cloud-libs cloud provider code",
   "keywords": [
     "f5",
@@ -29,7 +29,7 @@
     "request": "^2.83.0"
   },
   "peerDependencies": {
-    "@f5devcentral/f5-cloud-libs": "^4.1.0-beta.1"
+    "@f5devcentral/f5-cloud-libs": "^4.2.0-beta.1"
   },
   "devDependencies": {
     "eslint": "^4.16.0",
