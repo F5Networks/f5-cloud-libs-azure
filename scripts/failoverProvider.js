@@ -44,12 +44,13 @@ if (fs.existsSync('/config/cloud/.azCredentials')) {
     const secret = credentialsFile.secret;
     const subscriptionId = credentialsFile.subscriptionId;
     const tenantId = credentialsFile.tenantId;
-    const location = credentialsFile.location;
+    let location = credentialsFile.location;
     uniqueLabel = credentialsFile.uniqueLabel;
     resourceGroup = credentialsFile.resourceGroupName;
     // Detect environment based on location (region), default to Azure
     let environment = azureEnvironment.Azure;
     if (location) {
+        location = location.toLowerCase();
         logger.silly(`Location: ${location}`);
         // Azure US Government cloud regions: US DoD Central, US DoD East, US Gov Arizona,
         // US Gov Iowa, US Gov Non-Regional, US Gov Texas, US Gov Virginia, US Sec East1, US Sec Wes
