@@ -130,7 +130,7 @@ fi
 
 # Add check/loop in case metadata service does not respond right away
 count=0
-while [ $count -lt 5 ]; do
+while [ $count -lt 10 ]; do
     if [[ -z $instance ]]; then
         sleep 5
         echo "Attempting to contact the metadata service: $count"
