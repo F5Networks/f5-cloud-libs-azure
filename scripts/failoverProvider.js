@@ -685,7 +685,8 @@ function matchNics(nics, vs, selfIps, tgs, global) {
 
                 for (i = theirNicArr.length - 1; i >= 0; i--) {
                     for (t = trafficGroupIpArr.length - 1; t >= 0; t--) {
-                        if (trafficGroupIpArr[t].address.includes(theirNicArr[i].privateIPAddress)) {
+                        if (trafficGroupIpArr[t].address === theirNicArr[i].privateIPAddress) {
+                            logger.silly('Match:', theirNicArr[i].privateIPAddress);
                             myNicArr.push(getNicConfig(theirNicArr[i]));
                             theirNicArr.splice(i, 1);
                             break;
