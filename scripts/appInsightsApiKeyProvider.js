@@ -27,10 +27,10 @@ options
     .option('--key-operation [type]', 'Application Insights Key', 'create')
     .option('--key-id [type]', 'Specify the API Key ID for deletion')
     .option('--log-level [type]', 'Specify the Log Level', 'info')
+    .option('--log-file [type]', 'Specify log file location', '/var/log/cloud/azure/appInsightsApiKey.log')
     .parse(process.argv);
 
-const logFile = '/var/log/cloud/azure/appInsightsApiKey.log';
-const loggerOptions = { logLevel: options.logLevel, fileName: logFile, console: true };
+const loggerOptions = { logLevel: options.logLevel, fileName: options.logFile, console: true };
 const logger = Logger.getLogger(loggerOptions);
 
 let credentialsFile;

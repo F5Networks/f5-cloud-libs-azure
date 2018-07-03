@@ -21,10 +21,11 @@ options
     .version('1.0.0')
 
     .option('--log-level [type]', 'Specify the log level', 'info')
+    .option('--log-file [type]', 'Specify the log file location', '/var/log/cloud/azure/failover.log')
+    .option('--config-file [type]', 'Specify the log level', '/config/cloud/.azCredentials')
     .parse(process.argv);
 
-const logFile = '/var/log/cloud/azure/azureFailover.log';
-const loggerOptions = { logLevel: options.logLevel, fileName: logFile, console: true };
+const loggerOptions = { logLevel: options.logLevel, fileName: options.logFile, console: true };
 const logger = Logger.getLogger(loggerOptions);
 const BigIp = f5CloudLibs.bigIp;
 const bigip = new BigIp({ logger });
@@ -37,9 +38,9 @@ let storageAccount;
 let storageKey;
 let storageClient;
 
-if (fs.existsSync('/config/cloud/.azCredentials')) {
-    logger.debug('Credentials file found');
-    const credentialsFile = JSON.parse(fs.readFileSync('/config/cloud/.azCredentials', 'utf8'));
+if (fs.existsSync(options.configFile)) {
+    logger.debug('Configuration file found');
+    const credentialsFile = JSON.parse(fs.readFileSync(options.configFile, 'utf8'));
     const clientId = credentialsFile.clientId;
     const secret = credentialsFile.secret;
     const subscriptionId = credentialsFile.subscriptionId;
@@ -83,7 +84,7 @@ if (fs.existsSync('/config/cloud/.azCredentials')) {
         environment.resourceManagerEndpointUrl
     );
 } else {
-    logger.error('Credentials file not found');
+    logger.error('Configuration file not found');
     return;
 }
 
