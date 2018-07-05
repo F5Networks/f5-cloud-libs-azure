@@ -273,9 +273,16 @@ function processPreviousTask() {
                             clearInterval(i);
                             deferred.resolve();
                         }
+                        // If previous task reports failure we should attempt to recover immediately
+                        if (data.status === FAILOVER_STATUS_FAIL) {
+                            logger.info('Previous task failed, recovering');
+                            recoverPreviousTask = true;
+                            clearInterval(i);
+                            deferred.resolve();
+                        }
 
                         // If maximum allowed time has gone by without task succeeding, set
-                        // recoverPreviousTask flag and perform failover
+                        // recover flag and perform failover
                         logger.silly('differenceInMs: ', differenceInMs, MAX_RUNNING_TASK_MS);
                         if (differenceInMs > MAX_RUNNING_TASK_MS) {
                             logger.info('Recovering from previous task, differenceInMs: ', differenceInMs);
