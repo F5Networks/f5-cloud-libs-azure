@@ -21,10 +21,11 @@ options
     .version('1.0.0')
 
     .option('--log-level [type]', 'Specify the log level', 'info')
+    .option('--log-file [type]', 'Specify the log file location', '/var/log/cloud/azure/failover.log')
+    .option('--config-file [type]', 'Specify the log level', '/config/cloud/.azCredentials')
     .parse(process.argv);
 
-const logFile = '/var/log/cloud/azure/azureFailover.log';
-const loggerOptions = { logLevel: options.logLevel, fileName: logFile, console: true };
+const loggerOptions = { logLevel: options.logLevel, fileName: options.logFile, console: true };
 const logger = Logger.getLogger(loggerOptions);
 const BigIp = f5CloudLibs.bigIp;
 const bigip = new BigIp({ logger });
@@ -37,9 +38,9 @@ let storageAccount;
 let storageKey;
 let storageClient;
 
-if (fs.existsSync('/config/cloud/.azCredentials')) {
-    logger.debug('Credentials file found');
-    const credentialsFile = JSON.parse(fs.readFileSync('/config/cloud/.azCredentials', 'utf8'));
+if (fs.existsSync(options.configFile)) {
+    logger.debug('Configuration file found');
+    const credentialsFile = JSON.parse(fs.readFileSync(options.configFile, 'utf8'));
     const clientId = credentialsFile.clientId;
     const secret = credentialsFile.secret;
     const subscriptionId = credentialsFile.subscriptionId;
@@ -83,7 +84,7 @@ if (fs.existsSync('/config/cloud/.azCredentials')) {
         environment.resourceManagerEndpointUrl
     );
 } else {
-    logger.error('Credentials file not found');
+    logger.error('Configuration file not found');
     return;
 }
 
@@ -101,14 +102,14 @@ const FAILOVER_FILE = 'statusdb';
 const FAILOVER_STATUS_SUCCESS = 'succeeded';
 const FAILOVER_STATUS_FAIL = 'failed';
 const FAILOVER_STATUS_RUN = 'running';
-const MAX_RUNNING_TASK_MS = 5 * 60000; // 5 minutes
+const MAX_RUNNING_TASK_MS = 10 * 60000; // 10 minutes
 let tgStats = [];
 let globalSettings = [];
 let virtualAddresses = [];
 let selfIpsArr = [];
 let recoverPreviousTask = false;
 // Define base properties of failover database in storage
-let failoverDbBlob = {
+let failoverDb = {
     status: '',
     timeStamp: '',
     desiredConfiguration: {
@@ -122,7 +123,7 @@ let failoverDbBlob = {
 const performFailover = function () {
     const deferred = q.defer();
 
-    putJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE, failoverDbBlob)
+    putJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE, failoverDb)
         .then(() => {
             return notifyStateUpdate('delete');
         })
@@ -166,16 +167,16 @@ const performFailover = function () {
         })
         .then(() => {
             logger.silly('Updating failover database in storage');
-            failoverDbBlob.status = FAILOVER_STATUS_SUCCESS;
-            return putJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE, failoverDbBlob);
+            failoverDb.status = FAILOVER_STATUS_SUCCESS;
+            return putJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE, failoverDb);
         })
         .then(() => {
             logger.silly('Updated failover database successfully');
             deferred.resolve();
         })
         .catch((err) => {
-            failoverDbBlob.status = FAILOVER_STATUS_FAIL;
-            putJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE, failoverDbBlob)
+            failoverDb.status = FAILOVER_STATUS_FAIL;
+            putJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE, failoverDb)
                 .then(() => {
                     logger.error('Error during failover:', err);
                     deferred.reject(err);
@@ -186,7 +187,7 @@ const performFailover = function () {
 
 storageInit(storageClient)
     .then(() => {
-        // Avoid the case where multiple tgactive scripts triggered
+        // Avoid the case where multiple tgactive/tgrefresh scripts are triggered
         // within a short time frame may stomp on each other
         return notifyStateUpdate('check');
     })
@@ -194,27 +195,23 @@ storageInit(storageClient)
         return getJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE);
     })
     .then((results) => {
-        failoverDbBlob = results;
+        failoverDb = results;
 
-        logger.debug('Failover database status:', failoverDbBlob.status);
-        if (failoverDbBlob.status === FAILOVER_STATUS_RUN || failoverDbBlob.status === FAILOVER_STATUS_FAIL) {
-            if (typeof failoverDbBlob.timeStamp !== 'undefined' && failoverDbBlob.timeStamp !== '') {
-                const differenceInMs = new Date() - Date.parse(failoverDbBlob.timeStamp);
-                logger.silly('differenceInMs:', differenceInMs, 'MAX_RUNNING_TASK_MS:', MAX_RUNNING_TASK_MS);
-                if (differenceInMs > MAX_RUNNING_TASK_MS) {
-                    logger.info('Recovering from previous task, differenceInMs:', differenceInMs);
-                    recoverPreviousTask = true;
-                }
-            }
-            // Return - except when recovering from previous incomplete or failed task
-            if (!recoverPreviousTask) {
-                logger.info('Already performing failover, exit');
-                return q();
-            }
+        // If status tells us previous task is either running or failed then we need to wait
+        logger.silly('Failover database status:', failoverDb.status);
+        if (failoverDb.status === FAILOVER_STATUS_RUN || failoverDb.status === FAILOVER_STATUS_FAIL) {
+            logger.info('Waiting for previous task to complete before continuing');
+            return processPreviousTask();
         }
-
-        failoverDbBlob.status = FAILOVER_STATUS_RUN;
-        failoverDbBlob.timeStamp = new Date().toJSON();
+        return q();
+    })
+    .then(() => {
+        // If recovering from previous task, log
+        if (recoverPreviousTask) {
+            logger.info('Recovering from previous task');
+        }
+        failoverDb.status = FAILOVER_STATUS_RUN;
+        failoverDb.timeStamp = new Date().toJSON();
         return performFailover();
     })
     .then(() => {
@@ -249,9 +246,71 @@ const retryRoutes = function (routeTableGroup, routeTableName, routeName, routeP
 };
 
 /**
+    * Queries previous task in an interval until certain conditions are met
+    *
+    * @returns {Promise} A promise which will be resolved after certain conditions are met
+*/
+function processPreviousTask() {
+    const deferred = q.defer();
+
+    // set last task timestamp to now if it does not exist
+    if (typeof failoverDb.timeStamp === 'undefined' || failoverDb.timeStamp === '') {
+        failoverDb.timeStamp = new Date().toJSON();
+    }
+
+    const i = setInterval(run, 5000);
+
+    function run() {
+        return new Promise(
+            ((resolve, reject) => {
+                const differenceInMs = new Date() - Date.parse(failoverDb.timeStamp);
+                getJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE)
+                    .then((data) => {
+                        // If previous task reports success we are fine to perform failover
+                        logger.silly('status: ', data.status);
+                        if (data.status === FAILOVER_STATUS_SUCCESS) {
+                            logger.info('Previous task completed, continuing');
+                            clearInterval(i);
+                            deferred.resolve();
+                        }
+                        // If previous task reports failure we should attempt to recover immediately
+                        if (data.status === FAILOVER_STATUS_FAIL) {
+                            logger.info('Previous task failed, recovering');
+                            recoverPreviousTask = true;
+                            clearInterval(i);
+                            deferred.resolve();
+                        }
+
+                        // If maximum allowed time has gone by without task succeeding, set
+                        // recover flag and perform failover
+                        logger.silly('differenceInMs: ', differenceInMs, MAX_RUNNING_TASK_MS);
+                        if (differenceInMs > MAX_RUNNING_TASK_MS) {
+                            logger.info('Recovering from previous task, differenceInMs: ', differenceInMs);
+                            recoverPreviousTask = true;
+                            clearInterval(i);
+                            deferred.resolve();
+                        }
+
+                        // simply resolve if done with chain
+                        resolve();
+                    })
+                    .catch((error) => {
+                        logger.error('Error: ', error);
+                        clearInterval(i);
+                        deferred.reject(error);
+                        reject(error);
+                    });
+            })
+        );
+    }
+
+    return deferred.promise;
+}
+
+/**
     * Creates local notification to alert other processes that state is being updated
     *
-    * @param {String} action - Action to take for local notification function
+    * @param {String} action - Action to take for local notification
     *
     * @returns {Promise} A promise which will be resolved after state update actions taken
 */
@@ -268,18 +327,18 @@ function notifyStateUpdate(action) {
     } else if (action === 'check') {
         // Check in intervals in case previous process is not done updating state
         let ctr = 30;
-        const iObj = setInterval(() => {
+        const i = setInterval(() => {
             if (!fs.existsSync(stateFile)) {
                 fs.writeFileSync(stateFile, stateFileContents, 'utf8');
                 deferred.resolve();
-                clearInterval(iObj);
+                clearInterval(i);
             } else {
                 logger.silly('State file exists, retrying after sleep:', ctr);
             }
             ctr -= 1;
             if (ctr === 0) {
                 deferred.reject(new Error('State file still exists after retry period expired:', stateFile));
-                clearInterval(iObj);
+                clearInterval(i);
             }
         }, 1000);
     } else {
@@ -500,6 +559,8 @@ function getIpConfigs(ipConfigurations) {
     * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
 */
 function matchNics(nics, vs, selfIps, tgs, global) {
+    const deferred = q.defer();
+
     let h;
     let i;
     let p;
@@ -721,20 +782,19 @@ function matchNics(nics, vs, selfIps, tgs, global) {
 
     if (recoverPreviousTask) {
         // Replace current configuration with previous desired configuration from failover database
-        if (failoverDbBlob.desiredConfiguration.nicArr.disassociateArr &&
-            failoverDbBlob.desiredConfiguration.nicArr.associateArr) {
-            disassociateArr = failoverDbBlob.desiredConfiguration.nicArr.disassociateArr;
-            associateArr = failoverDbBlob.desiredConfiguration.nicArr.associateArr;
+        if (failoverDb.desiredConfiguration.nicArr.disassociateArr &&
+            failoverDb.desiredConfiguration.nicArr.associateArr) {
+            disassociateArr = failoverDb.desiredConfiguration.nicArr.disassociateArr;
+            associateArr = failoverDb.desiredConfiguration.nicArr.associateArr;
         }
     }
     // Update failover database with desired configuration prior to updating NICs
     if (disassociateArr && disassociateArr.length && associateArr && associateArr.length) {
-        failoverDbBlob.desiredConfiguration.nicArr.disassociateArr = disassociateArr;
-        failoverDbBlob.desiredConfiguration.nicArr.associateArr = associateArr;
+        failoverDb.desiredConfiguration.nicArr.disassociateArr = disassociateArr;
+        failoverDb.desiredConfiguration.nicArr.associateArr = associateArr;
     }
 
-    const associateDeferred = q.defer();
-    putJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE, failoverDbBlob)
+    putJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE, failoverDb)
         .then(() => {
             const disassociatePromises = disassociateArr.map(retrier.bind(null, updateNics));
             return Promise.all(disassociatePromises);
@@ -746,13 +806,13 @@ function matchNics(nics, vs, selfIps, tgs, global) {
         })
         .then(() => {
             logger.info('Associate NICs successful.');
-            associateDeferred.resolve();
+            deferred.resolve();
         })
         .catch((error) => {
             logger.error('Error: ', error);
-            associateDeferred.reject(error);
+            deferred.reject(error);
         });
-    return associateDeferred.promise;
+    return deferred.promise;
 }
 
 /**
@@ -774,7 +834,7 @@ function storageInit(sClient) {
                 // blob exists, continue
                 deferred.resolve();
             } else {
-                putJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE, failoverDbBlob)
+                putJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE, failoverDb)
                     .then(() => {
                         deferred.resolve();
                     });

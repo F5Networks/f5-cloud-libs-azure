@@ -26,10 +26,10 @@ options
     .option('--instance-id [type]', 'This Instance ID', '0')
     .option('--nat-base [type]', 'Specify the Nat Base', 'mgmtnatpool.')
     .option('--log-level [type]', 'Specify the Log Level', 'info')
+    .option('--log-file [type]', 'Specify the log file location', '/var/log/cloud/azure/scaleSet.log')
     .parse(process.argv);
 
-const logFile = '/var/log/cloud/azure/azureScaleSet.log';
-const logger = Logger.getLogger({ logLevel: options.logLevel, fileName: logFile, console: true });
+const logger = Logger.getLogger({ logLevel: options.logLevel, fileName: options.logFile, console: true });
 
 let credentialsFile;
 if (fs.existsSync('/config/cloud/.azCredentials')) {

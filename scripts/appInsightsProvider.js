@@ -25,11 +25,11 @@ options
 
     .option('--key [type]', 'Application Insights Key', 'specify_key')
     .option('--log-level [type]', 'Specify the Log Level', 'info')
+    .option('--log-file [type]', 'Specify the log file location', '/var/log/cloud/azure/metricsCollector.log')
     .option('--mgmt-port [type]', 'Specify the BIG-IP mgmt port', '8443')
     .parse(process.argv);
 
-const logFile = '/var/log/cloud/azure/azureMetricsCollector.log';
-const loggerOptions = { logLevel: options.logLevel, fileName: logFile, console: true };
+const loggerOptions = { logLevel: options.logLevel, fileName: options.logFile, console: true };
 const logger = Logger.getLogger(loggerOptions);
 this.logger = logger;
 const bigip = new BigIp({ logger: this.logger });
