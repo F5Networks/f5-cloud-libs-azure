@@ -38,7 +38,6 @@ let azureStorageMock;
 let azureComputeMock;
 let bigIpMock;
 let utilMock;
-let localCryptoUtilMock;
 let AzureAutoscaleProvider;
 let provider;
 let createBlobFromTextParams;
@@ -54,7 +53,6 @@ module.exports = {
     setUp(callback) {
         /* eslint-disable import/no-extraneous-dependencies, import/no-unresolved, global-require */
         utilMock = require('@f5devcentral/f5-cloud-libs').util;
-        localCryptoUtilMock = require('@f5devcentral/f5-cloud-libs').localCryptoUtil;
         azureMock = require('ms-rest-azure');
         azureNetworkMock = require('azure-arm-network');
         azureStorageMock = require('azure-storage');
@@ -126,32 +124,6 @@ module.exports = {
                     test.strictEqual(receivedClientId, clientId);
                     test.strictEqual(receivedSecret, secret);
                     test.strictEqual(receivedTenantId, tenantId);
-                    test.done();
-                });
-        },
-
-        testAzureLoginSecretId(test) {
-            const storedSecret = 'my secret from rest';
-            const providerOptions = {
-                clientId,
-                tenantId,
-                subscriptionId,
-                secretId: 'foo',
-                scaleSet: 'myScaleSet',
-                resourceGroup: 'myResourceGroup'
-            };
-
-            localCryptoUtilMock.decryptDataFromRestStorage = function decryptDataFromRestStorage() {
-                return q(
-                    {
-                        servicePrincipalSecret: storedSecret
-                    }
-                );
-            };
-
-            provider.init(providerOptions)
-                .then(() => {
-                    test.strictEqual(receivedSecret, storedSecret);
                     test.done();
                 });
         },
