@@ -13,9 +13,11 @@ const fs = require('fs');
 const q = require('q');
 const msRestAzure = require('ms-rest-azure');
 const NetworkManagementClient = require('azure-arm-network');
-const Logger = require('@f5devcentral/f5-cloud-libs').logger;
-const BigIp = require('@f5devcentral/f5-cloud-libs').bigIp;
+const f5CloudLibs = require('@f5devcentral/f5-cloud-libs');
+const localCryptoUtil = require('@f5devcentral/f5-cloud-libs').localCryptoUtil;
 
+const Logger = f5CloudLibs.logger;
+const BigIp = f5CloudLibs.bigIp;
 
 /**
  * Grab command line arguments
@@ -26,72 +28,78 @@ options
     .option('--instance-id [type]', 'This Instance ID', '0')
     .option('--nat-base [type]', 'Specify the Nat Base', 'mgmtnatpool.')
     .option('--log-level [type]', 'Specify the Log Level', 'info')
+    .option('--config-file [type]', 'Specify the configuration file', '/config/cloud/.azCredentials')
     .option('--log-file [type]', 'Specify the log file location', '/var/log/cloud/azure/scaleSet.log')
     .parse(process.argv);
 
 const logger = Logger.getLogger({ logLevel: options.logLevel, fileName: options.logFile, console: true });
+const bigip = new BigIp({ logger });
 
-let credentialsFile;
-if (fs.existsSync('/config/cloud/.azCredentials')) {
-    credentialsFile = JSON.parse(fs.readFileSync('/config/cloud/.azCredentials', 'utf8'));
+let configFile;
+if (fs.existsSync(options.configFile)) {
+    configFile = fs.readFileSync(options.configFile, 'utf8');
 } else {
     logger.info('Credentials file not found');
     return;
 }
 
-const subscriptionId = credentialsFile.subscriptionId;
-const clientId = credentialsFile.clientId;
-const tenantId = credentialsFile.tenantId;
-const secret = credentialsFile.secret;
-const resourceGroupName = credentialsFile.resourceGroupName;
-const vmssName = credentialsFile.vmssName;
+let resourceGroupName;
+let vmssName;
+let loadBalancerName;
+let instanceId;
+let inboundNatRuleBase;
 
-const loadBalancerName = credentialsFile.loadBalancerName;
-const instanceId = options.instanceId;
-const inboundNatRuleBase = options.natBase;
-
-const credentials = new msRestAzure.ApplicationTokenCredentials(clientId, tenantId, secret);
-this.networkClient = new NetworkManagementClient(credentials, subscriptionId);
-this.logger = logger;
-const bigip = new BigIp({ logger: this.logger });
-
-/** Log some basic information
- * Instance ID, Load Balancer Name
-*/
-logger.debug('Instance ID:', instanceId, 'Load Balancer Name:', loadBalancerName,
-    'VMSS Name:', vmssName);
-
-bigip.init(
-    'localhost',
-    'svc_user',
-    'file:///config/cloud/.passwd',
-    {
-        passwordIsUrl: true,
-        port: '8443',
-        passwordEncrypted: true
-    }
+q.all(
+    localCryptoUtil.symmetricDecryptPassword(configFile),
+    bigip.init(
+        'localhost',
+        'svc_user',
+        'file:///config/cloud/.passwd',
+        {
+            passwordIsUrl: true,
+            port: '8443',
+            passwordEncrypted: true
+        }
+    )
 )
-    .then(() => {
+    .then((results) => {
+        configFile = JSON.parse(results[0]);
+
+        resourceGroupName = configFile.resourceGroupName;
+        vmssName = configFile.vmssName;
+        loadBalancerName = configFile.loadBalancerName;
+        instanceId = options.instanceId;
+        inboundNatRuleBase = options.natBase;
+
+        const credentials = new msRestAzure.ApplicationTokenCredentials(
+            configFile.clientId, configFile.tenantId, configFile.secret
+        );
+        this.networkClient = new NetworkManagementClient(credentials, configFile.subscriptionId);
+
+        /** Log some basic information such as: Instance ID, Load Balancer Name, VMSS Name */
+        logger.debug('Instance ID:', instanceId, 'Load Balancer Name:', loadBalancerName,
+            'VMSS Name:', vmssName);
+
         const promises = [];
+        promises.push(getPublicIpFromScaleSet(this.networkClient, resourceGroupName, vmssName, instanceId));
         if (loadBalancerName) {
             promises.push(listDeploymentALB(this.networkClient, resourceGroupName, loadBalancerName));
         } else {
             promises.push(q(''));
         }
-        promises.push(getPublicIpFromScaleSet(this.networkClient, resourceGroupName, vmssName, instanceId));
 
-        Promise.all(promises)
-            .then((results) => {
-                const instanceInfo = {};
-                instanceInfo.port = getNatRulePort(results[0], instanceId, inboundNatRuleBase);
-                instanceInfo.publicIp = results[1];
+        return q.all(promises);
+    })
+    .then((results) => {
+        const instanceInfo = {};
+        instanceInfo.publicIp = results[0];
+        instanceInfo.port = getNatRulePort(results[1], instanceId, inboundNatRuleBase);
 
-                logger.info('instanceInfo:', instanceInfo);
-            })
-            .catch((err) => {
-                const error = err.message ? err.message : err;
-                logger.error(error);
-            });
+        logger.info('instanceInfo:', instanceInfo);
+    })
+    .catch((err) => {
+        const error = err.message ? err.message : err;
+        logger.error(error);
     });
 
 
@@ -100,7 +108,7 @@ bigip.init(
  *
  * @param {Object} networkClient - Azure network client
  * @param {String} resourceGroup - Name of the resource group
- * @param {Object} vName         - Name of the VMSS
+ * @param {String} vName         - Name of the VMSS
  * @param {String} ir            - VMSS ID
  * @returns {List} A list of public IP addresses
 */

@@ -38,6 +38,7 @@ let azureStorageMock;
 let azureComputeMock;
 let bigIpMock;
 let utilMock;
+let localCryptoUtilMock;
 let AzureAutoscaleProvider;
 let provider;
 let createBlobFromTextParams;
@@ -53,6 +54,7 @@ module.exports = {
     setUp(callback) {
         /* eslint-disable import/no-extraneous-dependencies, import/no-unresolved, global-require */
         utilMock = require('@f5devcentral/f5-cloud-libs').util;
+        localCryptoUtilMock = require('@f5devcentral/f5-cloud-libs').localCryptoUtil;
         azureMock = require('ms-rest-azure');
         azureNetworkMock = require('azure-arm-network');
         azureStorageMock = require('azure-storage');
@@ -61,7 +63,6 @@ module.exports = {
 
         AzureAutoscaleProvider = require('../../lib/azureAutoscaleProvider');
         /* eslint-enable import/no-extraneous-dependencies, import/no-unresolved, global-require */
-
 
         provider = new AzureAutoscaleProvider({ clOptions: { user: 'foo', password: 'bar' } });
         provider.resourceGroup = 'my resource group';
@@ -86,15 +87,21 @@ module.exports = {
 
     testInit: {
         setUp(callback) {
+            const credentialsBlob = {
+                clientId,
+                secret,
+                tenantId,
+                subscriptionId,
+                storageAccount,
+                storageKey
+            };
+
             utilMock.getDataFromUrl = function getDataFromUrl() {
-                return q(JSON.stringify({
-                    clientId,
-                    secret,
-                    tenantId,
-                    subscriptionId,
-                    storageAccount,
-                    storageKey
-                }));
+                return q(JSON.stringify(credentialsBlob));
+            };
+
+            localCryptoUtilMock.symmetricDecryptPassword = function symmetricDecryptPassword() {
+                return q(JSON.stringify(credentialsBlob));
             };
 
             azureMock.loginWithServicePrincipalSecret = function loginWithServicePrincipalSecret(
@@ -117,6 +124,23 @@ module.exports = {
                 scaleSet: 'myScaleSet',
                 resourceGroup: 'myResourceGroup',
                 azCredentialsUrl: 'file:///foo/bar'
+            };
+
+            provider.init(providerOptions)
+                .then(() => {
+                    test.strictEqual(receivedClientId, clientId);
+                    test.strictEqual(receivedSecret, secret);
+                    test.strictEqual(receivedTenantId, tenantId);
+                    test.done();
+                });
+        },
+
+        testAzureLoginEncrypted(test) {
+            const providerOptions = {
+                scaleSet: 'myScaleSet',
+                resourceGroup: 'myResourceGroup',
+                azCredentialsUrl: 'file:///foo/bar',
+                azCredentialsEncrypted: true
             };
 
             provider.init(providerOptions)

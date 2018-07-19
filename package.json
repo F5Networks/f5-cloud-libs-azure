@@ -39,8 +39,8 @@
   },
   "scripts": {
     "lint": "node node_modules/eslint/bin/eslint lib scripts",
-    "package": "./package.sh",
+    "package": "bash ./package.sh",
     "test": "node node_modules/nodeunit/bin/nodeunit --reporter eclipse test test/lib",
-    "version": "./setVersion.sh $npm_package_version && git add ."
+    "version": "bash ./setVersion.sh $npm_package_version && git add ."
   }
 }
