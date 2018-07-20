@@ -147,10 +147,10 @@ const performFailover = function () {
     return deferred.promise;
 };
 
-q.all(
+q.all([
     localCryptoUtil.symmetricDecryptPassword(configFile),
     storageInit(storageClient)
-)
+])
     .then((results) => {
         configFile = JSON.parse(results[0]);
         subscriptionId = configFile.subscriptionId;

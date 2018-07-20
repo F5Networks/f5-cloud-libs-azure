@@ -49,7 +49,7 @@ let loadBalancerName;
 let instanceId;
 let inboundNatRuleBase;
 
-q.all(
+q.all([
     localCryptoUtil.symmetricDecryptPassword(configFile),
     bigip.init(
         'localhost',
@@ -61,7 +61,7 @@ q.all(
             passwordEncrypted: true
         }
     )
-)
+])
     .then((results) => {
         configFile = JSON.parse(results[0]);
 
