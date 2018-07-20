@@ -148,8 +148,7 @@ const performFailover = function () {
 };
 
 q.all([
-    localCryptoUtil.symmetricDecryptPassword(configFile),
-    storageInit(storageClient)
+    localCryptoUtil.symmetricDecryptPassword(configFile)
 ])
     .then((results) => {
         configFile = JSON.parse(results[0]);
@@ -194,6 +193,9 @@ q.all([
             environment.resourceManagerEndpointUrl
         );
 
+        return storageInit(storageClient);
+    })
+    .then(() => {
         // Avoid the case where multiple tgactive/tgrefresh scripts are triggered
         // within a short time frame may stomp on each other
         return notifyStateUpdate('check');
