@@ -149,7 +149,6 @@ fi
 if [[ ! -z $big_iq_address ]]; then
     echo "Licensing via BIG-IQ: $big_iq_address"
     instance_id=$(echo $instance | grep -E -o "_.{0,3}" | sed 's/_//;s/\"//g')
-    jq -c .instanceId=$instance_id $azure_secret_file > tmp.$$.json && mv tmp.$$.json $azure_secret_file
     # License via BIG-IQ
     if [[ $big_ip_ext_mgmt_port == *"via-api"* ]]; then
         ## Have to go get MGMT port from inbound nat rules on ALB ##
