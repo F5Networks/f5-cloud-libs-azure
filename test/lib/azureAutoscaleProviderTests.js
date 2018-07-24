@@ -32,6 +32,8 @@ const storageKey = 'myStorageKey';
 
 let ucsEntries = [];
 
+let authnMock;
+let icontrolMock;
 let azureMock;
 let azureNetworkMock;
 let azureStorageMock;
@@ -60,6 +62,8 @@ module.exports = {
         azureStorageMock = require('azure-storage');
         azureComputeMock = require('azure-arm-compute');
         bigIpMock = require('@f5devcentral/f5-cloud-libs').bigIp;
+        authnMock = require('../../../f5-cloud-libs').authn;
+        icontrolMock = require('../../../f5-cloud-libs').iControl;
 
         AzureAutoscaleProvider = require('../../lib/azureAutoscaleProvider');
         /* eslint-enable import/no-extraneous-dependencies, import/no-unresolved, global-require */
@@ -1024,6 +1028,11 @@ module.exports = {
                         hostname: 'foo'
                     }
                 );
+            };
+
+            authnMock.authenticate = function authenticate(host, user, password) {
+                icontrolMock.password = password;
+                return q.resolve(icontrolMock);
             };
 
             callback();
