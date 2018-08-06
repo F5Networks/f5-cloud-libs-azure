@@ -1030,6 +1030,10 @@ module.exports = {
                 );
             };
 
+            bigIpMock.prototype.ready = function ready() {
+                return q();
+            };
+
             authnMock.authenticate = function authenticate(host, user, password) {
                 icontrolMock.password = password;
                 return q.resolve(icontrolMock);
