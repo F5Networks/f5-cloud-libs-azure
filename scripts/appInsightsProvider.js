@@ -13,6 +13,7 @@
 'use strict';
 
 const options = require('commander');
+const q = require('q');
 const appInsights = require('applicationinsights');
 const Logger = require('@f5devcentral/f5-cloud-libs').logger;
 const BigIp = require('@f5devcentral/f5-cloud-libs').bigIp;
@@ -25,8 +26,8 @@ options
 
     .option('--key [type]', 'Application Insights Key', 'specify_key')
     .option('--log-level [type]', 'Specify the Log Level', 'info')
-    .option('--log-file [type]', 'Specify the log file location', '/var/log/cloud/azure/metricsCollector.log')
     .option('--mgmt-port [type]', 'Specify the BIG-IP mgmt port', '8443')
+    .option('--log-file [type]', 'Specify the log file location', '/var/log/cloud/azure/metricsCollector.log')
     .parse(process.argv);
 
 const loggerOptions = { logLevel: options.logLevel, fileName: options.logFile, console: true };
@@ -61,22 +62,23 @@ bigip.init(
         return bigip.ready();
     })
     .then(() => {
-        Promise.all([
+        return q.all([
             bigip.list('/tm/sys/tmm-info/stats'),
             bigip.list('/tm/sys/traffic/stats'),
-        ])
-            .then((results) => {
-                const cpuMetricValue = calcTmmCpu(results[0].entries);
-                logger.debug(`Metric Name: ${cpuMetricName} Metric Value: ${cpuMetricValue}`);
-                client.trackMetric(cpuMetricName, cpuMetricValue);
+        ]);
+    })
+    .then((results) => {
+        const cpuMetricValue = calcTmmCpu(results[0].entries);
+        logger.debug(`Metric Name: ${cpuMetricName} Metric Value: ${cpuMetricValue}`);
+        client.trackMetric(cpuMetricName, cpuMetricValue);
 
-                const trafficMetricValue = calcTraffic(results[1].entries);
-                logger.debug(`Metric Name: ${trafficMetricName} Metric Value: ${trafficMetricValue}`);
-                client.trackMetric(trafficMetricName, trafficMetricValue);
-            })
-            .catch((err) => {
-                logger.error(err);
-            });
+        const trafficMetricValue = calcTraffic(results[1].entries);
+        logger.debug(`Metric Name: ${trafficMetricName} Metric Value: ${trafficMetricValue}`);
+        client.trackMetric(trafficMetricName, trafficMetricValue);
+    })
+    .catch((err) => {
+        const error = err.message ? err.message : err;
+        logger.error(error);
     });
 
 

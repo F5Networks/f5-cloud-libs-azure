@@ -13,6 +13,7 @@ const f5CloudLibs = require('@f5devcentral/f5-cloud-libs');
 
 const Logger = f5CloudLibs.logger;
 const util = f5CloudLibs.util;
+const localCryptoUtil = f5CloudLibs.localCryptoUtil;
 
 /**
  * Grab command line arguments
@@ -21,8 +22,8 @@ options
     .version('1.0.0')
 
     .option('--log-level [type]', 'Specify the log level', 'info')
-    .option('--log-file [type]', 'Specify the log file location', '/var/log/cloud/azure/failover.log')
-    .option('--config-file [type]', 'Specify the log level', '/config/cloud/.azCredentials')
+    .option('--config-file [type]', 'Specify the configuration file', '/config/cloud/.azCredentials')
+    .option('--log-file [type]', 'Specify the log file', '/var/log/cloud/azure/failover.log')
     .parse(process.argv);
 
 const loggerOptions = { logLevel: options.logLevel, fileName: options.logFile, console: true };
@@ -30,70 +31,21 @@ const logger = Logger.getLogger(loggerOptions);
 const BigIp = f5CloudLibs.bigIp;
 const bigip = new BigIp({ logger });
 
-let uniqueLabel;
-let resourceGroup;
-let networkClient;
-let routeFilter;
-let storageAccount;
-let storageKey;
-let storageClient;
-
+let configFile;
 if (fs.existsSync(options.configFile)) {
-    logger.debug('Configuration file found');
-    const credentialsFile = JSON.parse(fs.readFileSync(options.configFile, 'utf8'));
-    const clientId = credentialsFile.clientId;
-    const secret = credentialsFile.secret;
-    const subscriptionId = credentialsFile.subscriptionId;
-    const tenantId = credentialsFile.tenantId;
-    let location = credentialsFile.location;
-    uniqueLabel = credentialsFile.uniqueLabel;
-    resourceGroup = credentialsFile.resourceGroupName;
-    // Detect environment based on location (region), default to Azure
-    let environment = azureEnvironment.Azure;
-    if (location) {
-        location = location.toLowerCase();
-        logger.silly(`Location: ${location}`);
-        // Azure US Government cloud regions: US DoD Central, US DoD East, US Gov Arizona,
-        // US Gov Iowa, US Gov Non-Regional, US Gov Texas, US Gov Virginia, US Sec East1, US Sec Wes
-        if (location.includes('usgov') || location.includes('usdod') || location.includes('ussec')) {
-            environment = azureEnvironment.AzureUSGovernment;
-        // Azure China cloud regions: China East, China North
-        } else if (location.includes('china')) {
-            environment = azureEnvironment.AzureChina;
-        // Azure Germany cloud regions: Germany Central, Germany Non-Regional, Germany Northeast
-        // Note: There is Azure commercial cloud regions in germany so have to be specific
-        } else if (location.includes('germanycentral') || location.includes('germanynortheast') ||
-            location.includes('germanynonregional')) {
-            environment = azureEnvironment.AzureGermanCloud;
-        }
-    }
-
-    storageAccount = credentialsFile.storageAccount;
-    storageKey = credentialsFile.storageKey;
-    storageClient = azureStorage.createBlobService(
-        storageAccount,
-        storageKey,
-        `${storageAccount}.blob${environment.storageEndpointSuffix}`
-    );
-    const credentials = new msRestAzure.ApplicationTokenCredentials(
-        clientId, tenantId, secret, { environment }
-    );
-    networkClient = new NetworkManagementClient(
-        credentials,
-        subscriptionId,
-        environment.resourceManagerEndpointUrl
-    );
+    configFile = fs.readFileSync(options.configFile, 'utf8');
 } else {
     logger.error('Configuration file not found');
     return;
 }
 
-if (fs.existsSync('/config/cloud/managedRoutes')) {
+let routeFilter = [];
+const managedRoutesFile = '/config/cloud/managedRoutes';
+if (fs.existsSync(managedRoutesFile)) {
     logger.silly('Managed routes file found');
     routeFilter =
-        fs.readFileSync('/config/cloud/managedRoutes', 'utf8').replace(/(\r\n|\n|\r)/gm, '').split(',');
+        fs.readFileSync(managedRoutesFile, 'utf8').replace(/(\r\n|\n|\r)/gm, '').split(',');
 } else {
-    routeFilter = [];
     logger.info('Managed routes file not found');
 }
 
@@ -119,6 +71,16 @@ let failoverDb = {
         }
     }
 };
+let subscriptionId;
+let location;
+let uniqueLabel;
+let resourceGroup;
+let environment;
+let storageAccount;
+let storageKey;
+let storageClient;
+let credentials;
+let networkClient;
 
 const performFailover = function () {
     const deferred = q.defer();
@@ -140,7 +102,7 @@ const performFailover = function () {
             );
         })
         .then(() => {
-            return Promise.all([
+            return q.all([
                 bigip.list('/tm/cm/traffic-group/stats'),
                 bigip.list('/tm/sys/global-settings'),
                 bigip.list('/tm/net/self'),
@@ -153,14 +115,14 @@ const performFailover = function () {
             globalSettings = results[1];
             selfIpsArr = results[2];
             virtualAddresses = results[3];
-            return Promise.all([
+            return q.all([
                 listRouteTables(),
                 listAzNics(resourceGroup),
             ]);
         })
         .then((results) => {
             logger.info('Performing failover');
-            return Promise.all([
+            return q.all([
                 matchRoutes(results[0], selfIpsArr, tgStats, globalSettings),
                 matchNics(results[1], virtualAddresses, selfIpsArr, tgStats, globalSettings),
             ]);
@@ -185,7 +147,54 @@ const performFailover = function () {
     return deferred.promise;
 };
 
-storageInit(storageClient)
+q.all([
+    localCryptoUtil.symmetricDecryptPassword(configFile)
+])
+    .then((results) => {
+        configFile = JSON.parse(results[0]);
+        subscriptionId = configFile.subscriptionId;
+        location = configFile.location;
+        uniqueLabel = configFile.uniqueLabel;
+        resourceGroup = configFile.resourceGroupName;
+
+        // Detect environment based on location (region), default to Azure
+        environment = azureEnvironment.Azure;
+        if (location) {
+            location = location.toLowerCase();
+            logger.silly(`Location: ${location}`);
+            // Azure US Government cloud regions: US DoD Central, US DoD East, US Gov Arizona,
+            // US Gov Iowa, US Gov Non-Regional, US Gov Texas, US Gov Virginia, US Sec East1, US Sec Wes
+            if (location.includes('usgov') || location.includes('usdod') || location.includes('ussec')) {
+                environment = azureEnvironment.AzureUSGovernment;
+            // Azure China cloud regions: China East, China North
+            } else if (location.includes('china')) {
+                environment = azureEnvironment.AzureChina;
+            // Azure Germany cloud regions: Germany Central, Germany Non-Regional, Germany Northeast
+            // Note: There is Azure commercial cloud regions in germany so have to be specific
+            } else if (location.includes('germanycentral') || location.includes('germanynortheast') ||
+                location.includes('germanynonregional')) {
+                environment = azureEnvironment.AzureGermanCloud;
+            }
+        }
+
+        storageAccount = configFile.storageAccount;
+        storageKey = configFile.storageKey;
+        storageClient = azureStorage.createBlobService(
+            storageAccount,
+            storageKey,
+            `${storageAccount}.blob${environment.storageEndpointSuffix}`
+        );
+        credentials = new msRestAzure.ApplicationTokenCredentials(
+            configFile.clientId, configFile.tenantId, configFile.secret, { environment }
+        );
+        networkClient = new NetworkManagementClient(
+            credentials,
+            subscriptionId,
+            environment.resourceManagerEndpointUrl
+        );
+
+        return storageInit(storageClient);
+    })
     .then(() => {
         // Avoid the case where multiple tgactive/tgrefresh scripts are triggered
         // within a short time frame may stomp on each other
@@ -797,12 +806,12 @@ function matchNics(nics, vs, selfIps, tgs, global) {
     putJsonObject(storageClient, FAILOVER_CONTAINER, FAILOVER_FILE, failoverDb)
         .then(() => {
             const disassociatePromises = disassociateArr.map(retrier.bind(null, updateNics));
-            return Promise.all(disassociatePromises);
+            return q.all(disassociatePromises);
         })
         .then(() => {
             logger.info('Disassociate NICs successful.');
             const associatePromises = associateArr.map(retrier.bind(null, updateNics));
-            return Promise.all(associatePromises);
+            return q.all(associatePromises);
         })
         .then(() => {
             logger.info('Associate NICs successful.');
