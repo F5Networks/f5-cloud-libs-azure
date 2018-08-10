@@ -44,6 +44,7 @@ let localCryptoUtilMock;
 let AzureAutoscaleProvider;
 let provider;
 let createBlobFromTextParams;
+let virtualMachineScaleSetUpdateParams;
 
 let receivedClientId;
 let receivedSecret;
@@ -117,7 +118,7 @@ module.exports = {
                 receivedClientId = aClientId;
                 receivedSecret = aSecret;
                 receivedTenantId = aTenantId;
-                cb(null, { signRequest() {} });
+                cb(null, { signRequest() { } });
             };
 
             callback();
@@ -1038,7 +1039,6 @@ module.exports = {
                 icontrolMock.password = password;
                 return q.resolve(icontrolMock);
             };
-
             callback();
         },
 
@@ -1085,6 +1085,76 @@ module.exports = {
                     test.done();
                 });
         }
+    },
+
+    testTagMaster: {
+        setUp(callback) {
+            azureComputeMock.virtualMachineScaleSets = {
+                get(resourceGroup, scaleSetName, options, cb) {
+                    cb(null,
+                        {
+                            tags: {
+                                application: 'APP',
+                                cost: 'COST',
+                                'resourceGroupName-master': '10.0.1.4'
+                            }
+                        });
+                },
+                update(resourceGroup, scaleSet, params, options, cb) {
+                    virtualMachineScaleSetUpdateParams = {
+                        resourceGroup,
+                        scaleSet,
+                        params,
+                        options
+                    };
+                    cb();
+                }
+            };
+
+            provider.computeClient = azureComputeMock;
+            provider.networkClient = azureNetworkMock;
+            provider.scaleSet = 'scaleSetName';
+            provider.resourceGroup = 'resourceGroupName';
+
+            callback();
+        },
+
+        testTagMasterInstance(test) {
+            const masterIid = '456';
+            const instances = {
+                123: {
+                    mgmtIp: '5.6.7.8',
+                    privateIp: '5.6.7.8',
+                    hostname: '5.6.7.8_myHostname',
+                    providerVisible: true,
+                    versionOk: true
+                },
+                456: {
+                    mgmtIp: '7.8.9.0',
+                    privateIp: '7.8.9.0',
+                    hostname: '7.8.9.0_myHostname',
+                    providerVisible: true,
+                    versionOk: true
+                }
+            };
+
+            test.expect(3);
+            provider.tagMasterInstance(masterIid, instances)
+                .then(() => {
+                    test.strictEqual(
+                        virtualMachineScaleSetUpdateParams.params.tags['resourceGroupName-master'],
+                        instances[masterIid].privateIp
+                    );
+                    test.strictEqual(virtualMachineScaleSetUpdateParams.params.tags.application, 'APP');
+                    test.strictEqual(virtualMachineScaleSetUpdateParams.resourceGroup, 'resourceGroupName');
+                })
+                .catch((err) => {
+                    test.ok(false, err);
+                })
+                .finally(() => {
+                    test.done();
+                });
+        },
     },
 
     testGetStoredUcs: {
