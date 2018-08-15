@@ -63,8 +63,8 @@ module.exports = {
         azureStorageMock = require('azure-storage');
         azureComputeMock = require('azure-arm-compute');
         bigIpMock = require('@f5devcentral/f5-cloud-libs').bigIp;
-        authnMock = require('../../../f5-cloud-libs').authn;
-        icontrolMock = require('../../../f5-cloud-libs').iControl;
+        authnMock = require('@f5devcentral/f5-cloud-libs').authn;
+        icontrolMock = require('@f5devcentral/f5-cloud-libs').iControl;
 
         AzureAutoscaleProvider = require('../../lib/azureAutoscaleProvider');
         /* eslint-enable import/no-extraneous-dependencies, import/no-unresolved, global-require */
