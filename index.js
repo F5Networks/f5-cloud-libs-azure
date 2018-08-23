@@ -18,5 +18,5 @@
 
 /* eslint-disable global-require */
 module.exports = {
-    provider: require('./lib/azureAutoscaleProvider.js')
+    provider: require('./lib/azureCloudProvider.js')
 };
