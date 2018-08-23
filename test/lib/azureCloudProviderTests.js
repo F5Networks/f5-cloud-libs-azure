@@ -20,9 +20,6 @@ process.env.NODE_PATH = `${__dirname}/../../../`;
 require('module').Module._initPaths(); // eslint-disable-line no-underscore-dangle
 
 const q = require('q');
-
-const AutoscaleInstance = require('@f5devcentral/f5-cloud-libs').autoscaleInstance;
-
 const clientId = 'myClientId';
 const secret = 'mySecret';
 const tenantId = 'myTenantId';
@@ -42,6 +39,7 @@ let bigIpMock;
 let utilMock;
 let localCryptoUtilMock;
 let AzureCloudProvider;
+let AutoscaleInstance;
 let provider;
 let createBlobFromTextParams;
 let virtualMachineScaleSetUpdateParams;
@@ -68,6 +66,11 @@ module.exports = {
 
         AzureCloudProvider = require('../../lib/azureCloudProvider');
         /* eslint-enable import/no-extraneous-dependencies, import/no-unresolved, global-require */
+        AutoscaleInstance = require('@f5devcentral/f5-cloud-libs').autoscaleInstance;
+
+        utilMock.getProduct = function() {
+            return q('BIG-IP');
+        };
 
         provider = new AzureCloudProvider({ clOptions: { user: 'foo', password: 'bar' } });
         provider.resourceGroup = 'my resource group';
