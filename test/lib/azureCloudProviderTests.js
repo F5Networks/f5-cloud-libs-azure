@@ -41,7 +41,7 @@ let azureComputeMock;
 let bigIpMock;
 let utilMock;
 let localCryptoUtilMock;
-let AzureAutoscaleProvider;
+let AzureCloudProvider;
 let provider;
 let createBlobFromTextParams;
 let virtualMachineScaleSetUpdateParams;
@@ -66,10 +66,10 @@ module.exports = {
         authnMock = require('@f5devcentral/f5-cloud-libs').authn;
         icontrolMock = require('@f5devcentral/f5-cloud-libs').iControl;
 
-        AzureAutoscaleProvider = require('../../lib/azureAutoscaleProvider');
+        AzureCloudProvider = require('../../lib/azureCloudProvider');
         /* eslint-enable import/no-extraneous-dependencies, import/no-unresolved, global-require */
 
-        provider = new AzureAutoscaleProvider({ clOptions: { user: 'foo', password: 'bar' } });
+        provider = new AzureCloudProvider({ clOptions: { user: 'foo', password: 'bar' } });
         provider.resourceGroup = 'my resource group';
 
         azureStorageMock.createBlobService = function createBlobService() {
