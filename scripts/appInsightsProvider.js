@@ -39,13 +39,11 @@ const bigip = new BigIp({ logger: this.logger });
 /**
  * Gather Metrics and send to Application Insights
  */
-if (options.logLevel === 'debug' || options.logLevel === 'silly') { appInsights.enableVerboseLogging(); }
 appInsights.setup(options.key);
-const client = appInsights.client;
+const client = appInsights.defaultClient;
 
 const cpuMetricName = 'F5_TMM_CPU';
 const trafficMetricName = 'F5_TMM_TRAFFIC';
-
 
 bigip.init(
     'localhost',
@@ -69,12 +67,13 @@ bigip.init(
     })
     .then((results) => {
         const cpuMetricValue = calcTmmCpu(results[0].entries);
-        logger.debug(`Metric Name: ${cpuMetricName} Metric Value: ${cpuMetricValue}`);
-        client.trackMetric(cpuMetricName, cpuMetricValue);
-
         const trafficMetricValue = calcTraffic(results[1].entries);
+        /** Log name/value if debug is enabled */
+        logger.debug(`Metric Name: ${cpuMetricName} Metric Value: ${cpuMetricValue}`);
         logger.debug(`Metric Name: ${trafficMetricName} Metric Value: ${trafficMetricValue}`);
-        client.trackMetric(trafficMetricName, trafficMetricValue);
+        /** Send metrics to application insights */
+        client.trackMetric({ name: cpuMetricName, value: cpuMetricValue });
+        client.trackMetric({ name: trafficMetricName, value: trafficMetricValue });
     })
     .catch((err) => {
         const error = err.message ? err.message : err;
