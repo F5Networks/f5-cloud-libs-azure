@@ -17,7 +17,6 @@ const f5CloudLibs = require('@f5devcentral/f5-cloud-libs');
 const localCryptoUtil = require('@f5devcentral/f5-cloud-libs').localCryptoUtil;
 
 const Logger = f5CloudLibs.logger;
-const BigIp = f5CloudLibs.bigIp;
 
 /**
  * Grab command line arguments
@@ -33,7 +32,6 @@ options
     .parse(process.argv);
 
 const logger = Logger.getLogger({ logLevel: options.logLevel, fileName: options.logFile, console: true });
-const bigip = new BigIp({ logger });
 
 let configFile;
 if (fs.existsSync(options.configFile)) {
@@ -50,17 +48,7 @@ let instanceId;
 let inboundNatRuleBase;
 
 q.all([
-    localCryptoUtil.symmetricDecryptPassword(configFile),
-    bigip.init(
-        'localhost',
-        'svc_user',
-        'file:///config/cloud/.passwd',
-        {
-            passwordIsUrl: true,
-            port: '8443',
-            passwordEncrypted: true
-        }
-    )
+    localCryptoUtil.symmetricDecryptPassword(configFile)
 ])
     .then((results) => {
         configFile = JSON.parse(results[0]);
