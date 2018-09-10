@@ -1,7 +1,7 @@
 #!/bin/bash
-if [[ $1 == '--no-deps' ]]; then
-    rm -rf node_modules
+if [[ $1 == '--production' ]]; then
     npm install --production
+    rm -rf node_modules/@f5devcentral
 fi
 
 tar -C .. --exclude=".git*" --exclude="test" --exclude="${PWD##*/}/dist" --exclude="build" --exclude="doc" --exclude="gitHooks" -cf dist/f5-cloud-libs-azure.tar f5-cloud-libs-azure
