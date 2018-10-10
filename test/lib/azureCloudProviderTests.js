@@ -44,6 +44,8 @@ let provider;
 let createBlobFromTextParams;
 let virtualMachineScaleSetUpdateParams;
 
+let getBlobToTextParams;
+
 let receivedClientId;
 let receivedSecret;
 let receivedTenantId;
@@ -1283,5 +1285,82 @@ module.exports = {
                     test.done();
                 });
         }
-    }
+    },
+
+    testGetDataFromUri: {
+        setUp(callback) {
+            azureStorageMock.getBlobToText = function getBlobToText(container, blob, cb) {
+                getBlobToTextParams = {
+                    container,
+                    blob
+                };
+                cb(null, 'AzureBlobData');
+            };
+
+            provider.storageClient = azureStorageMock;
+
+            getBlobToTextParams = undefined;
+            callback();
+        },
+
+        testBasic(test) {
+            test.expect(3);
+            provider.getDataFromUri('https://account.blob.core.windows.net/myStuff/myFile')
+                .then((data) => {
+                    test.strictEqual(getBlobToTextParams.container, 'myStuff');
+                    test.strictEqual(getBlobToTextParams.blob, 'myFile');
+                    test.strictEqual(data, 'AzureBlobData');
+                })
+                .catch((err) => {
+                    test.ok(false, err);
+                })
+                .finally(() => {
+                    test.done();
+                });
+        },
+
+        testComplexKey(test) {
+            test.expect(3);
+            provider.getDataFromUri('https://account.blob.core.windows.net/myStuff/myFolder/myFile')
+                .then((data) => {
+                    test.strictEqual(getBlobToTextParams.container, 'myStuff');
+                    test.strictEqual(getBlobToTextParams.blob, 'myFolder/myFile');
+                    test.strictEqual(data, 'AzureBlobData');
+                })
+                .catch((err) => {
+                    test.ok(false, err);
+                })
+                .finally(() => {
+                    test.done();
+                });
+        },
+
+        testInvalidUri(test) {
+            test.expect(1);
+            provider.getDataFromUri('myStuff/myFolder/myFile')
+                .then(() => {
+                    test.ok(false, 'Should have thrown invalid URI');
+                })
+                .catch((err) => {
+                    test.notStrictEqual(err.message.indexOf('Invalid URI'), -1);
+                })
+                .finally(() => {
+                    test.done();
+                });
+        },
+
+        testInvalidBlobPath(test) {
+            test.expect(1);
+            provider.getDataFromUri('https://account.blob.core.windows.net/myStuff')
+                .then(() => {
+                    test.ok(false, 'Should have thrown invalid URI');
+                })
+                .catch((err) => {
+                    test.notStrictEqual(err.message.indexOf('Invalid URI'), -1);
+                })
+                .finally(() => {
+                    test.done();
+                });
+        }
+    },
 };
