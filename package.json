@@ -1,6 +1,6 @@
 {
   "name": "@f5devcentral/f5-cloud-libs-azure",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "Azure implementation of f5-cloud-libs cloud provider code",
   "keywords": [
     "f5",
@@ -22,6 +22,7 @@
     "azure-arm-appinsights": "^2.0.0",
     "azure-arm-compute": "^4.0.0",
     "azure-arm-network": "5.1.0",
+    "azure-arm-resource": "^7.2.0",
     "azure-storage": "^2.8.1",
     "commander": "^2.9.0",
     "ms-rest-azure": "^2.5.4",
@@ -34,7 +35,7 @@
   "devDependencies": {
     "eslint": "^4.16.0",
     "eslint-config-airbnb-base": "^12.1.0",
-    "eslint-plugin-import": "^2.8.0",
+    "eslint-plugin-import": "^2.14.0",
     "nodeunit": "^0.11"
   },
   "scripts": {

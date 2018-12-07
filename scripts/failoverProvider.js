@@ -7,6 +7,7 @@ const fs = require('fs');
 const q = require('q');
 const msRestAzure = require('ms-rest-azure');
 const NetworkManagementClient = require('azure-arm-network');
+const armResource = require('azure-arm-resource');
 const azureStorage = require('azure-storage');
 const azureEnvironment = require('ms-rest-azure/lib/azureEnvironment');
 const f5CloudLibs = require('@f5devcentral/f5-cloud-libs');
@@ -43,12 +44,21 @@ let routeFilter = [];
 const managedRoutesFile = '/config/cloud/managedRoutes';
 if (fs.existsSync(managedRoutesFile)) {
     logger.silly('Managed routes file found');
-    routeFilter =
-        fs.readFileSync(managedRoutesFile, 'utf8').replace(/(\r\n|\n|\r)/gm, '').split(',');
+    routeFilter = fs.readFileSync(managedRoutesFile, 'utf8').replace(/(\r\n|\n|\r)/gm, '').split(',');
 } else {
     logger.info('Managed routes file not found');
 }
 
+const specialLocations = {
+    // Azure US Government cloud regions: US DoD Central, US DoD East, US Gov Arizona,
+    // US Gov Iowa, US Gov Non-Regional, US Gov Texas, US Gov Virginia, US Sec East1, US Sec Wes
+    AzureUSGovernment: ['usgov', 'usdod', 'ussec'],
+    // Azure China cloud regions: China East, China North
+    AzureChina: ['china'],
+    // Azure Germany cloud regions: Germany Central, Germany Non-Regional, Germany Northeast
+    // Note: There is Azure commercial cloud regions in germany so have to be specific
+    AzureGermanCloud: ['germanycentral', 'germanynortheast', 'germanynonregional']
+};
 const FAILOVER_CONTAINER = 'failover';
 const FAILOVER_FILE = 'statusdb';
 const FAILOVER_STATUS_SUCCESS = 'succeeded';
@@ -71,7 +81,7 @@ let failoverDb = {
         }
     }
 };
-let subscriptionId;
+let primarySubscriptionId;
 let location;
 let uniqueLabel;
 let resourceGroup;
@@ -80,7 +90,8 @@ let storageAccount;
 let storageKey;
 let storageClient;
 let credentials;
-let networkClient;
+const networkClients = [];
+let subClient;
 
 const performFailover = function () {
     const deferred = q.defer();
@@ -152,7 +163,7 @@ q.all([
 ])
     .then((results) => {
         configFile = JSON.parse(results[0]);
-        subscriptionId = configFile.subscriptionId;
+        primarySubscriptionId = configFile.subscriptionId;
         location = configFile.location;
         uniqueLabel = configFile.uniqueLabel;
         resourceGroup = configFile.resourceGroupName;
@@ -162,19 +173,11 @@ q.all([
         if (location) {
             location = location.toLowerCase();
             logger.silly(`Location: ${location}`);
-            // Azure US Government cloud regions: US DoD Central, US DoD East, US Gov Arizona,
-            // US Gov Iowa, US Gov Non-Regional, US Gov Texas, US Gov Virginia, US Sec East1, US Sec Wes
-            if (location.includes('usgov') || location.includes('usdod') || location.includes('ussec')) {
-                environment = azureEnvironment.AzureUSGovernment;
-            // Azure China cloud regions: China East, China North
-            } else if (location.includes('china')) {
-                environment = azureEnvironment.AzureChina;
-            // Azure Germany cloud regions: Germany Central, Germany Non-Regional, Germany Northeast
-            // Note: There is Azure commercial cloud regions in germany so have to be specific
-            } else if (location.includes('germanycentral') || location.includes('germanynortheast') ||
-                location.includes('germanynonregional')) {
-                environment = azureEnvironment.AzureGermanCloud;
-            }
+            Object.keys(specialLocations).forEach((specialLocation) => {
+                if (specialLocations[specialLocation].indexOf(location) !== -1) {
+                    environment = azureEnvironment[specialLocation];
+                }
+            });
         }
 
         storageAccount = configFile.storageAccount;
@@ -187,13 +190,11 @@ q.all([
         credentials = new msRestAzure.ApplicationTokenCredentials(
             configFile.clientId, configFile.tenantId, configFile.secret, { environment }
         );
-        networkClient = new NetworkManagementClient(
-            credentials,
-            subscriptionId,
-            environment.resourceManagerEndpointUrl
-        );
 
         return storageInit(storageClient);
+    })
+    .then(() => {
+        return initNetworkClients();
     })
     .then(() => {
         // Avoid the case where multiple tgactive/tgrefresh scripts are triggered
@@ -232,11 +233,11 @@ q.all([
         notifyStateUpdate('delete');
     });
 
-const retryRoutes = function (routeTableGroup, routeTableName, routeName, routeParams) {
+const retryRoutes = function (routeTableGroup, routeTableName, routeName, routeParams, subscription) {
     return new Promise(
         ((resolve, reject) => {
             logger.info('Updating route: ', routeName);
-            updateRoutes(routeTableGroup, routeTableName, routeName, routeParams)
+            updateRoutes(routeTableGroup, routeTableName, routeName, routeParams, subscription)
                 .then(() => {
                     logger.info('Update route successful: ', routeName);
                     resolve();
@@ -253,6 +254,44 @@ const retryRoutes = function (routeTableGroup, routeTableName, routeName, routeP
         })
     );
 };
+
+/**
+ * Initialize network clients for all subscriptions
+ *
+ * @returns {Promise} A promise which will be resolved after certain conditions are met
+ */
+function initNetworkClients() {
+    const deferred = q.defer();
+    subClient = new armResource.SubscriptionClient(credentials);
+    subClient.subscriptions.list()
+        .then((data) => {
+            if (data.length < 1) {
+                const errorMessage = 'Error: fail to retrieve list of subscriptions';
+                logger.error(errorMessage);
+                deferred.reject(new Error(errorMessage));
+            } else {
+                data.forEach((sub) => {
+                    const subscription = sub.subscriptionId;
+                    logger.info('Subscription ID: ', subscription);
+                    networkClients[subscription] = new NetworkManagementClient(
+                        credentials,
+                        subscription,
+                        environment.resourceManagerEndpointUrl
+                    );
+                });
+
+                // Verify primary subscription is included
+                if (Object.keys(networkClients).indexOf(primarySubscriptionId) === -1) {
+                    const errorMessage = 'Error: list of subscriptions does not include primary subscription';
+                    logger.error(errorMessage);
+                    deferred.reject(new Error(errorMessage));
+                } else {
+                    deferred.resolve();
+                }
+            }
+        });
+    return deferred.promise;
+}
 
 /**
     * Queries previous task in an interval until certain conditions are met
@@ -363,13 +402,15 @@ function notifyStateUpdate(action) {
     * @param {String} routeTableName - Name of the route table
     * @param {String} routeName - Name of the route to update
     * @param {Array} routeParams - New route parameters
+    * @param {String} subscription - The Azure subscription
     *
     * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
 */
-function updateRoutes(routeTableGroup, routeTableName, routeName, routeParams) {
+function updateRoutes(routeTableGroup, routeTableName, routeName, routeParams, subscription) {
     return new Promise(
         ((resolve, reject) => {
-            networkClient.routes.beginCreateOrUpdate(routeTableGroup, routeTableName, routeName, routeParams,
+            networkClients[subscription].routes.beginCreateOrUpdate(routeTableGroup, routeTableName,
+                routeName, routeParams,
                 (error, data) => {
                     if (error) {
                         reject(error);
@@ -384,22 +425,66 @@ function updateRoutes(routeTableGroup, routeTableName, routeName, routeParams) {
 /**
     * Lists all route tables in the subscription
     *
-    * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
+    * @returns {Promise} A promise which will be resolved with a dictionary of route tables keyed by
+    *                    subscription ID. Each route table value should be:
+    *                    {
+    *                        id: <String>,
+    *                        name: <String>,
+    *                        type: 'Microsoft.Network/routeTables',
+    *                        location: <String>,
+    *                        tags: { f5_ha: <String>, f5_tg: <String> },
+    *                        routes: [ { id: <String>,
+    *                                    addressPrefix: <String>,
+    *                                    nextHopType: 'VirtualAppliance',
+    *                                    nextHopIpAddress: <String>,
+    *                                    provisioningState: <String>,
+    *                                    name: <String>,
+    *                                    etag: <String> }
+    *                                ],
+    *                        subnets: [ { id: <String> } ],
+    *                        disableBgpRoutePropagation: <Boolean>,
+    *                        provisioningState: <String>,
+    *                        etag: <String> }
+    *                    }
 */
 function listRouteTables() {
-    return new Promise(
-        ((resolve, reject) => {
-            networkClient.routeTables.listAll(
-                (error, data) => {
-                    if (error) {
-                        reject(error);
-                    } else {
-                        resolve(data);
-                    }
+    const deferred = q.defer();
+    const routesAndSubscriptionsData = {};
+    const promises = [];
+
+    const getRouteTable = function (subscription) {
+        const routeDeferred = q.defer();
+        networkClients[subscription].routeTables.listAll(
+            (error, data) => {
+                if (error) {
+                    routeDeferred.reject(error);
+                } else if (data !== undefined) {
+                    routesAndSubscriptionsData[subscription] = data;
+                    routeDeferred.resolve(data);
+                } else {
+                    routeDeferred.resolve();
                 }
-            );
+            }
+        );
+
+        return routeDeferred.promise;
+    };
+
+    Object.keys(networkClients).forEach((subscription) => {
+        promises.push(getRouteTable(subscription));
+    });
+
+    q.all(promises)
+        .then((data) => {
+            logger.info('Routes: ', data);
+            deferred.resolve(routesAndSubscriptionsData);
         })
-    );
+        .catch((err) => {
+            logger.error(err);
+            deferred.reject(err);
+        });
+
+    return deferred.promise;
 }
 
 /**
@@ -407,31 +492,34 @@ function listRouteTables() {
     *
     * @param {Object} mySelfIp - Our self IP
     *
-    * @param {Array} routeTables - The Azure route tables
+    * @param {Array} routeTablesSubscriptions - The Azure route tables keyed by subscription ID
     *
     * @param {Array} myTrafficGroupsArr - Our going-active traffic groups
     *
 */
-function getRoutes(mySelfIp, routeTables, myTrafficGroupsArr) {
-    routeTables.forEach((routeTable) => {
-        if (routeTable.tags && routeTable.tags.f5_tg
-            && routeTable.tags.f5_ha
-            && mySelfIp.name.includes(routeTable.tags.f5_ha)) {
-            // get the tag for each route table that has one
-            const tgTag = routeTable.tags.f5_tg;
+function getRoutes(mySelfIp, routeTablesSubscriptions, myTrafficGroupsArr) {
+    Object.keys(networkClients).forEach((sub) => {
+        const routeTables = routeTablesSubscriptions[sub];
+        routeTables.forEach((routeTable) => {
+            if (routeTable.tags && routeTable.tags.f5_tg
+                && routeTable.tags.f5_ha
+                && mySelfIp.name.includes(routeTable.tags.f5_ha)) {
+                // get the tag for each route table that has one
+                const tgTag = routeTable.tags.f5_tg;
 
-            for (let t = myTrafficGroupsArr.length - 1; t >= 0; t--) {
-                if (myTrafficGroupsArr[t].trafficGroup.includes(tgTag)) {
-                    // set the resource group, name, and routes for each
-                    // route table with a tag that matches our self IP
-                    const routeTableGroup = routeTable.id.split('/')[4];
-                    const routeTableName = routeTable.name;
-                    const routes = routeTable.routes;
+                for (let t = myTrafficGroupsArr.length - 1; t >= 0; t--) {
+                    if (myTrafficGroupsArr[t].trafficGroup.includes(tgTag)) {
+                        // set the resource group, name, and routes for each
+                        // route table with a tag that matches our self IP
+                        const routeTableGroup = routeTable.id.split('/')[4];
+                        const routeTableName = routeTable.name;
+                        const routes = routeTable.routes;
 
-                    sendRoutes(routes, routeTableGroup, routeTableName, mySelfIp);
+                        sendRoutes(routes, routeTableGroup, routeTableName, mySelfIp, sub);
+                    }
                 }
             }
-        }
+        });
     });
 }
 
@@ -444,8 +532,12 @@ function getRoutes(mySelfIp, routeTables, myTrafficGroupsArr) {
     *
     * @param {String} routeTableName - The Azure route table name
     *
+    * @param {String} mySelfIp - The Azure Self IP address
+    *
+    * @param {String} subscription - The Azure subscription
+    *
 */
-function sendRoutes(routes, routeTableGroup, routeTableName, mySelfIp) {
+function sendRoutes(routes, routeTableGroup, routeTableName, mySelfIp, subscription) {
     routes.forEach(function routeFunction(route) {
         if (routeFilter.indexOf(route.addressPrefix) !== -1) {
             // if route matches our file,
@@ -456,7 +548,7 @@ function sendRoutes(routes, routeTableGroup, routeTableName, mySelfIp) {
             myRoute.nextHopIpAddress = mySelfIp.address;
             const routeParams = myRoute;
 
-            const routeArr = [routeTableGroup, routeTableName, routeName, routeParams];
+            const routeArr = [routeTableGroup, routeTableName, routeName, routeParams, subscription];
 
             util.tryUntil(this, { maxRetries: 4, retryIntervalMs: 15000 },
                 retryRoutes, routeArr);
@@ -467,7 +559,7 @@ function sendRoutes(routes, routeTableGroup, routeTableName, mySelfIp) {
 /**
     * Determines which routes to update
     *
-    * @param {Object} routeTables - All of the route tables in the subscription
+    * @param {Object} routeTables - All of the route tables in the subscriptions
     * @param {String} self - The internal self IP address of this BIG-IP
     *
 */
@@ -507,10 +599,10 @@ function matchRoutes(routeTables, selfIps, tgs, global) {
     *
     * @returns {Promise} A promise which can be resolved with a non-error response from Azure REST API
 */
-function listAzNics() {
+function listAzNics(resourceGroupName) {
     return new Promise(
         ((resolve, reject) => {
-            networkClient.networkInterfaces.list(resourceGroup,
+            networkClients[primarySubscriptionId].networkInterfaces.list(resourceGroupName,
                 (error, data) => {
                     if (error) {
                         reject(error);
@@ -559,7 +651,7 @@ function getIpConfigs(ipConfigurations) {
 /**
     * Determines which IP configurations to move to and from network interfaces
     *
-    * @param {Object} nics    - The network interface configurations
+    * @param {Object} nicsSubscriptions    - The network interface configurations for all subscriptions
     * @param {Object} vs      - The virtual server configurations
     * @param {String} selfIps - The external self IP address of this BIG-IP
     * @param {String} tgs     - The traffic group stats
@@ -604,7 +696,8 @@ function matchNics(nics, vs, selfIps, tgs, global) {
         return new Promise(
             ((resolve, reject) => {
                 logger.info(action, 'NIC: ', nicName);
-                networkClient.networkInterfaces.createOrUpdate(group, nicName, nicParams,
+                networkClients[primarySubscriptionId].networkInterfaces.createOrUpdate(group, nicName,
+                    nicParams,
                     (error, data) => {
                         if (error) {
                             logger.error(action, 'NIC error: ', error);
@@ -791,8 +884,8 @@ function matchNics(nics, vs, selfIps, tgs, global) {
 
     if (recoverPreviousTask) {
         // Replace current configuration with previous desired configuration from failover database
-        if (failoverDb.desiredConfiguration.nicArr.disassociateArr &&
-            failoverDb.desiredConfiguration.nicArr.associateArr) {
+        if (failoverDb.desiredConfiguration.nicArr.disassociateArr
+            && failoverDb.desiredConfiguration.nicArr.associateArr) {
             disassociateArr = failoverDb.desiredConfiguration.nicArr.disassociateArr;
             associateArr = failoverDb.desiredConfiguration.nicArr.associateArr;
         }
