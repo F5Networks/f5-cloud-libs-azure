@@ -20,6 +20,7 @@ process.env.NODE_PATH = `${__dirname}/../../../`;
 require('module').Module._initPaths(); // eslint-disable-line no-underscore-dangle
 
 const q = require('q');
+
 const clientId = 'myClientId';
 const secret = 'mySecret';
 const tenantId = 'myTenantId';
@@ -49,6 +50,9 @@ let getBlobToTextParams;
 let receivedClientId;
 let receivedSecret;
 let receivedTenantId;
+let receivedAzureEnvironment;
+
+let azureLocation;
 
 // Our tests cause too many event listeners. Turn off the check.
 process.setMaxListeners(0);
@@ -67,10 +71,10 @@ module.exports = {
         icontrolMock = require('@f5devcentral/f5-cloud-libs').iControl;
 
         AzureCloudProvider = require('../../lib/azureCloudProvider');
-        /* eslint-enable import/no-extraneous-dependencies, import/no-unresolved, global-require */
         AutoscaleInstance = require('@f5devcentral/f5-cloud-libs').autoscaleInstance;
+        /* eslint-enable import/no-extraneous-dependencies, import/no-unresolved, global-require */
 
-        utilMock.getProduct = function() {
+        utilMock.getProduct = function getProduct() {
             return q('BIG-IP');
         };
 
@@ -106,7 +110,16 @@ module.exports = {
                 storageKey
             };
 
-            utilMock.getDataFromUrl = function getDataFromUrl() {
+            azureLocation = 'westus';
+
+            utilMock.getDataFromUrl = function getDataFromUrl(url) {
+                if (url.indexOf('http://169.254.169.254') !== -1) {
+                    return q({
+                        compute: {
+                            location: azureLocation
+                        }
+                    });
+                }
                 return q(JSON.stringify(credentialsBlob));
             };
 
@@ -118,11 +131,13 @@ module.exports = {
                 aClientId,
                 aSecret,
                 aTenantId,
+                options,
                 cb
             ) {
                 receivedClientId = aClientId;
                 receivedSecret = aSecret;
                 receivedTenantId = aTenantId;
+                receivedAzureEnvironment = options.environment;
                 cb(null, { signRequest() { } });
             };
 
@@ -141,6 +156,45 @@ module.exports = {
                     test.strictEqual(receivedClientId, clientId);
                     test.strictEqual(receivedSecret, secret);
                     test.strictEqual(receivedTenantId, tenantId);
+                    test.done();
+                });
+        },
+
+        testAzureGovLogin(test) {
+            azureLocation = 'USGovArizona';
+
+            const providerOptions = {
+                scaleSet: 'myScaleSet',
+                resourceGroup: 'myResourceGroup',
+                azCredentialsUrl: 'file:///foo/bar'
+            };
+
+            test.expect(4);
+            provider.init(providerOptions)
+                .then(() => {
+                    test.strictEqual(receivedClientId, clientId);
+                    test.strictEqual(receivedSecret, secret);
+                    test.strictEqual(receivedTenantId, tenantId);
+                    test.strictEqual(receivedAzureEnvironment.name, 'AzureUSGovernment');
+                    test.done();
+                });
+        },
+
+        testProviderOptionsAzureGovLogin(test) {
+            const providerOptions = {
+                scaleSet: 'myScaleSet',
+                resourceGroup: 'myResourceGroup',
+                azCredentialsUrl: 'file:///foo/bar',
+                environment: 'AzureUSGovernment'
+            };
+
+            test.expect(4);
+            provider.init(providerOptions)
+                .then(() => {
+                    test.strictEqual(receivedClientId, clientId);
+                    test.strictEqual(receivedSecret, secret);
+                    test.strictEqual(receivedTenantId, tenantId);
+                    test.strictEqual(receivedAzureEnvironment.name, 'AzureUSGovernment');
                     test.done();
                 });
         },
