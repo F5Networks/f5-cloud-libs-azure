@@ -173,12 +173,11 @@ q.all([
         environment = azureEnvironment.Azure;
         if (location) {
             location = location.toLowerCase();
-            logger.silly(`Location: ${location}`);
+            logger.info(`Location: ${location}`);
             Object.keys(specialLocations).forEach((specialLocation) => {
                 locArr = specialLocations[specialLocation];
                 for (let l = locArr.length - 1; l >= 0; l--) {
                     if (location.includes(locArr[l])) {
-                        logger.silly(`Environment: ${specialLocation}`);
                         environment = azureEnvironment[specialLocation];
                         break;
                     }
@@ -193,6 +192,7 @@ q.all([
             storageKey,
             `${storageAccount}.blob${environment.storageEndpointSuffix}`
         );
+
         credentials = new msRestAzure.ApplicationTokenCredentials(
             configFile.clientId, configFile.tenantId, configFile.secret, { environment }
         );
@@ -294,6 +294,23 @@ function initNetworkClients() {
                 } else {
                     deferred.resolve();
                 }
+            }
+        })
+        .catch((error) => {
+            const govError = 'The access token has been obtained for wrong audience';
+            if (error.message.includes(govError)) {
+                logger.error('Initializing network client using primary subscription');
+                const subscription = primarySubscriptionId;
+                logger.info('Subscription ID: ', subscription);
+                networkClients[subscription] = new NetworkManagementClient(
+                    credentials,
+                    subscription,
+                    environment.resourceManagerEndpointUrl
+                );
+                deferred.resolve();
+            } else {
+                logger.error('Failed to list subscriptions: ', error.message);
+                deferred.reject();
             }
         });
     return deferred.promise;
