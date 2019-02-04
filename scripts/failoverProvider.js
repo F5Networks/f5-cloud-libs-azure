@@ -83,6 +83,7 @@ let failoverDb = {
 };
 let primarySubscriptionId;
 let location;
+let locArr = [];
 let uniqueLabel;
 let resourceGroup;
 let environment;
@@ -174,8 +175,13 @@ q.all([
             location = location.toLowerCase();
             logger.silly(`Location: ${location}`);
             Object.keys(specialLocations).forEach((specialLocation) => {
-                if (specialLocations[specialLocation].indexOf(location) !== -1) {
-                    environment = azureEnvironment[specialLocation];
+                locArr = specialLocations[specialLocation];
+                for (let l = locArr.length - 1; l >= 0; l--) {
+                    if (location.includes(locArr[l])) {
+                        logger.silly(`Environment: ${specialLocation}`);
+                        environment = azureEnvironment[specialLocation];
+                        break;
+                    }
                 }
             });
         }
