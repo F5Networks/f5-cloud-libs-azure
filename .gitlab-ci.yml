@@ -6,6 +6,21 @@ stages:
     - publish
     - notify
 
+
+test_node4:
+    image: node:4.2.3
+    tags:
+        - docker-executor
+    stage: test
+    except:
+        - triggers
+    script:
+        - npm install -g npm@latest-4
+        - npm install --registry ${NPM_REGISTRY} @f5devcentral/f5-cloud-libs@beta
+        - npm install --registry ${NPM_REGISTRY}
+        - npm run lint
+        - npm test
+
 test_node6:
     image: node:6
     tags:
