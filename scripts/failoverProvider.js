@@ -597,7 +597,7 @@ function matchRoutes(routeTables, selfIps, tgs, global) {
     selfIps.forEach((self) => {
         mySelfIpArr.push({
             name: self.name,
-            address: self.address.split('/')[0]
+            address: self.address.split('/')[0].split('%')[0]
         });
     });
 
@@ -768,12 +768,12 @@ function matchNics(nics, vs, selfIps, tgs, global) {
 
         if (tgMatch) {
             floatingSelfIpArr.push({
-                address: self.address.split('/')[0],
+                address: self.address.split('/')[0].split('%')[0],
                 trafficGroup: self.trafficGroup
             });
         } else {
             mySelfIpArr.push({
-                address: self.address.split('/')[0]
+                address: self.address.split('/')[0].split('%')[0]
             });
         }
     });
@@ -782,7 +782,7 @@ function matchNics(nics, vs, selfIps, tgs, global) {
         logger.error('No virtual addresses exist, create them prior to failover.');
     } else {
         vs.forEach((virtualAddress) => {
-            const address = virtualAddress.address;
+            const address = virtualAddress.address.split('%')[0];
             const tg = virtualAddress.trafficGroup;
 
             myTrafficGroupsArr.forEach((tgmember) => {
@@ -799,7 +799,7 @@ function matchNics(nics, vs, selfIps, tgs, global) {
         logger.debug('No floating self IPs exist, just continue.');
     } else {
         floatingSelfIpArr.forEach((floatingSelf) => {
-            const address = floatingSelf.address;
+            const address = floatingSelf.address.split('%')[0];
             const tg = floatingSelf.trafficGroup;
 
             myTrafficGroupsArr.forEach((tgmember) => {
