@@ -799,7 +799,7 @@ function matchNics(nics, vs, selfIps, tgs, global) {
         logger.debug('No floating self IPs exist, just continue.');
     } else {
         floatingSelfIpArr.forEach((floatingSelf) => {
-            const address = floatingSelf.address.split('%')[0];
+            const address = floatingSelf.address;
             const tg = floatingSelf.trafficGroup;
 
             myTrafficGroupsArr.forEach((tgmember) => {
