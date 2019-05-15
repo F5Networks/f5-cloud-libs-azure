@@ -61,6 +61,9 @@ while [[ $# -gt 1 ]]; do
         --bigIpExtMgmtPort)
             big_ip_ext_mgmt_port=$2
             shift 2;;
+        --bigIpModules)
+            big_ip_modules=$2
+            shift 2;;
         --dnsOptions)
             dns_options=$2
             shift 2;;
@@ -86,15 +89,77 @@ while [[ $# -gt 1 ]]; do
 done
 
 block_sync=""
-mod_prov="ltm:nominal"
-# Check if deploying LTM+ASM
-if [[ ! -z $waf_script_args ]]; then
-    echo "Deploying as LTM+ASM: $waf_script_args"
-    mod_prov="ltm:nominal --module asm:nominal"
-    block_sync="--block-sync"
+
+echo "Requested modules for provisioning ${big_ip_modules}"
+
+waf_required_modules=('ltm' 'asm')
+possible_active_provisioned_levels=('nominal','dedicated','minimum')
+
+if [[ -z $big_ip_modules ]]; then
+
+    if [[ ! -z $waf_script_args ]]; then
+
+        echo "Deploying as LTM+ASM: $waf_script_args"
+        big_ip_modules="ltm:nominal,asm:nominal"
+        block_sync="--block-sync"
+
+    else
+
+        big_ip_modules="ltm:nominal"
+        echo "Deploying as LTM Only"
+
+    fi
+
+
 else
-    echo "Deploying as LTM Only"
+
+    # Check if all required modules are provisioned; Autoscale WAF requires "ltm and asm"
+    if [[ ! -z $waf_script_args ]]; then
+
+        requested_for_waf_modules=()
+
+        IFS=',' read -ra requested_modules <<< ${big_ip_modules}
+        for i in "${requested_modules[@]}"; do
+
+            module_name=$(echo $i | sed 's/:.*//')
+            module_level=$(echo $i | sed 's/.*://')
+
+            if [[ ${waf_required_modules[@]} =~ ${module_name} ]]; then
+
+                if [[ ${possible_active_provisioned_levels[@]} =~ ${module_level}  ]]; then
+
+                    requested_for_waf_modules+=(${module_name})
+
+                fi
+
+            fi
+
+        done
+
+        # Check if all WAF required modules requested for provisioning and if not, include WAF required module in list of provision list
+        if [[ ${#waf_required_modules[@]} -ne ${#requested_for_waf_modules[@]} ]];then
+
+              for waf_req_mod in "${waf_required_modules[@]}"; do
+
+                if [[ ! ${requested_for_waf_modules[@]} =~ ${waf_req_mod} ]]; then
+
+                    big_ip_modules+=",${waf_req_mod}:nominal"
+
+                fi
+
+              done
+
+        fi
+
+    fi
+
+
 fi
+
+
+echo "Resulted modules for provisioning: ${big_ip_modules}"
+
+
 # Check if deploying DNS options
 if [[ ! -z $dns_options ]]; then
     echo "Deploying with DNS options: $dns_options"
@@ -164,11 +229,11 @@ if [[ ! -z $big_iq_address ]]; then
         big_ip_ext_mgmt_addr=$(echo $via_api | awk -F 'instanceInfo: ' '{print $2}' | jq .publicIp --raw-output)
     fi
     echo "BIG-IP via BIG-IQ Info... IP: $big_ip_ext_mgmt_addr Port: $big_ip_ext_mgmt_port"
-    /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --onboard "--install-ilx-package file:///var/config/rest/downloads/$as3_build --output /var/log/cloud/azure/onboard.log --log-level $log_level --cloud azure --host $self_ip --port $dfl_mgmt_port --ssl-port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted --hostname $instance.azuresecurity.com --license-pool --big-iq-host $big_iq_address --big-iq-user $big_iq_user --big-iq-password-uri file://$big_iq_password --big-iq-password-encrypted --license-pool-name $big_iq_lic_pool_name $big_iq_extra_lic_options --big-ip-mgmt-address $big_ip_ext_mgmt_addr --big-ip-mgmt-port $big_ip_ext_mgmt_port --ntp $ntp_server --tz $time_zone --db provision.1nicautoconfig:disable --db tmm.maxremoteloglength:2048 $usage_analytics --module $mod_prov --module afm:none --no-reboot --signal ONBOARD_DONE" --autoscale "--wait-for ONBOARD_DONE --output /var/log/cloud/azure/autoscale.log --log-level $log_level --host $self_ip --port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted --cloud azure --license-pool --big-iq-host $big_iq_address --big-iq-user $big_iq_user --big-iq-password-uri file://$big_iq_password --big-iq-password-encrypted --license-pool-name $big_iq_lic_pool_name --big-ip-mgmt-address $big_ip_ext_mgmt_addr --big-ip-mgmt-port $big_ip_ext_mgmt_port $static $external_tag --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,azCredentialsEncrypted:true,resourceGroup:$resource_group --cluster-action join $block_sync --device-group Sync $dns_options"
+    /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --onboard "--install-ilx-package file:///var/config/rest/downloads/$as3_build --output /var/log/cloud/azure/onboard.log --log-level $log_level --cloud azure --host $self_ip --port $dfl_mgmt_port --ssl-port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted --hostname $instance.azuresecurity.com --license-pool --big-iq-host $big_iq_address --big-iq-user $big_iq_user --big-iq-password-uri file://$big_iq_password --big-iq-password-encrypted --license-pool-name $big_iq_lic_pool_name $big_iq_extra_lic_options --big-ip-mgmt-address $big_ip_ext_mgmt_addr --big-ip-mgmt-port $big_ip_ext_mgmt_port --ntp $ntp_server --tz $time_zone --db provision.1nicautoconfig:disable --db tmm.maxremoteloglength:2048 $usage_analytics --modules $big_ip_modules --no-reboot --signal ONBOARD_DONE" --autoscale "--wait-for ONBOARD_DONE --output /var/log/cloud/azure/autoscale.log --log-level $log_level --host $self_ip --port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted --cloud azure --license-pool --big-iq-host $big_iq_address --big-iq-user $big_iq_user --big-iq-password-uri file://$big_iq_password --big-iq-password-encrypted --license-pool-name $big_iq_lic_pool_name --big-ip-mgmt-address $big_ip_ext_mgmt_addr --big-ip-mgmt-port $big_ip_ext_mgmt_port $static $external_tag --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,azCredentialsEncrypted:true,resourceGroup:$resource_group --cluster-action join $block_sync --device-group Sync $dns_options"
 else
     # Assume PAYG and licensing is already handled
     echo "Licensing via PAYG, already completed"
-    /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --onboard "--install-ilx-package file:///var/config/rest/downloads/$as3_build --output /var/log/cloud/azure/onboard.log --log-level $log_level --host $self_ip --port $dfl_mgmt_port --ssl-port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted --hostname $instance.azuresecurity.com --ntp $ntp_server --tz $time_zone --db provision.1nicautoconfig:disable --db tmm.maxremoteloglength:2048 $usage_analytics --module $mod_prov --module afm:none --no-reboot --signal ONBOARD_DONE" --autoscale "--wait-for ONBOARD_DONE --output /var/log/cloud/azure/autoscale.log --log-level $log_level --host $self_ip --port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted --cloud azure $static $external_tag --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,azCredentialsEncrypted:true,resourceGroup:$resource_group --cluster-action join $block_sync --device-group Sync $dns_options"
+    /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --onboard "--install-ilx-package file:///var/config/rest/downloads/$as3_build --output /var/log/cloud/azure/onboard.log --log-level $log_level --host $self_ip --port $dfl_mgmt_port --ssl-port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted --hostname $instance.azuresecurity.com --ntp $ntp_server --tz $time_zone --db provision.1nicautoconfig:disable --db tmm.maxremoteloglength:2048 $usage_analytics --modules $big_ip_modules --no-reboot --signal ONBOARD_DONE" --autoscale "--wait-for ONBOARD_DONE --output /var/log/cloud/azure/autoscale.log --log-level $log_level --host $self_ip --port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted --cloud azure $static $external_tag --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,azCredentialsEncrypted:true,resourceGroup:$resource_group --cluster-action join $block_sync --device-group Sync $dns_options"
 fi
 
 if [ -f /config/cloud/master ]; then
