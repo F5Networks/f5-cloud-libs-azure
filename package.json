@@ -1,10 +1,6 @@
 {
   "name": "@f5devcentral/f5-cloud-libs-azure",
-<<<<<<< HEAD
-  "version": "2.8.0",
-=======
   "version": "2.9.0",
->>>>>>> release-2.9.0
   "description": "Azure implementation of f5-cloud-libs cloud provider code",
   "keywords": [
     "f5",
@@ -29,10 +25,6 @@
     "azure-arm-resource": "^7.2.0",
     "azure-storage": "^2.8.1",
     "commander": "^2.9.0",
-<<<<<<< HEAD
-    "lodash": "^4.17.11",
-=======
->>>>>>> release-2.9.0
     "ms-rest-azure": "^2.6.0",
     "q": "^1.4.1",
     "request": "^2.83.0"
