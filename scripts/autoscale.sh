@@ -34,8 +34,11 @@ while [[ $# -gt 1 ]]; do
         --as3Build)
             as3_build=$2
             shift 2;;
-        --wafScriptArgs)
-            waf_script_args=$2
+        --deploymentType)
+            deployment_type=$2
+            shift 2;;
+        --appScriptArgs)
+            app_script_args=$2
             shift 2;;
         --appInsightsKey)
             app_insights_key=$2
@@ -97,14 +100,15 @@ possible_active_provisioned_levels=('nominal','dedicated','minimum')
 
 if [[ -z $big_ip_modules ]]; then
 
-    if [[ ! -z $waf_script_args ]]; then
+    if [[ ! -z $deployment_type && $deployment_type == "waf" ]]; then
 
-        echo "Deploying as LTM+ASM: $waf_script_args"
+        echo "Deploying as LTM+ASM: $app_script_args"
         big_ip_modules="ltm:nominal,asm:nominal"
         block_sync="--block-sync"
 
     else
 
+        echo "Deploying as LTM+ASM: $app_script_args"
         big_ip_modules="ltm:nominal"
         echo "Deploying as LTM Only"
 
@@ -114,7 +118,7 @@ if [[ -z $big_ip_modules ]]; then
 else
 
     # Check if all required modules are provisioned; Autoscale WAF requires "ltm and asm"
-    if [[ ! -z $waf_script_args ]]; then
+    if [[ ! -z $deployment_type && $deployment_type == "waf" ]]; then
 
         requested_for_waf_modules=()
 
@@ -242,13 +246,13 @@ if [ -f /config/cloud/master ]; then
     ucs_loaded=$(cat /config/cloud/master | jq .ucsLoaded)
     echo "UCS Loaded: $ucs_loaded"
 
-    # If Deploying LTM+ASM run some additional commands
-    if [[ ! -z $waf_script_args ]]; then
-        # Deploy the WAF Application if master and ucs loaded equals false
+    # If deploying an application service, run some additional commands
+    if [[ ! -z $app_script_args ]]; then
+        # Deploy the application if master and ucs loaded equals false
         if $ucs_loaded; then
-            echo "NOTE: We are not deploying any WAF applications as a UCS was loaded, and it takes precedence."
+            echo "NOTE: We are not deploying any applications as a UCS was loaded, and it takes precedence."
         else
-            /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --script " --output /var/log/cloud/azure/deployScript.log --log-level $log_level --file /config/cloud/deploy_app.sh --cl-args '$waf_script_args' --signal DEPLOY_SCRIPT_DONE "
+            /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --script " --output /var/log/cloud/azure/deployScript.log --log-level $log_level --file /config/cloud/deploy_app.sh --cl-args '$app_script_args' --signal DEPLOY_SCRIPT_DONE "
         fi
         # Unblock the cluster sync
         /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/autoscale.js --output /var/log/cloud/azure/autoscale.log --log-level $log_level --host $self_ip --port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted $static $external_tag --cloud azure --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,azCredentialsEncrypted:true,resourceGroup:$resource_group --cluster-action unblock-sync
