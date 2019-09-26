@@ -1,7 +1,11 @@
 #!/bin/bash
 
-# Parse the command line arguments
 log_level=info
+backup_ucs_interval=86400
+cluster_update_interval=120
+metrics_collector_interval=60
+
+# parse the command line arguments
 while [[ $# -gt 1 ]]; do
     case "$1" in
         --resourceGroup)
@@ -81,6 +85,15 @@ while [[ $# -gt 1 ]]; do
             shift 2;;
         --backupUcs)
             backup_ucs=$2
+            shift 2;;
+        --backupUcsInterval)
+            backup_ucs_interval=$2
+            shift 2;;
+        --clusterUpdateInterval)
+            cluster_update_interval=$2
+            shift 2;;
+        --metricsCollectorInterval)
+            metrics_collector_interval=$2
             shift 2;;
         --logLevel)
             log_level=$2
@@ -272,7 +285,7 @@ icall_script_name="ClusterUpdate"
 tmsh list sys icall handler | grep $icall_handler_name
 if [[ $? != 0 ]]; then
     tmsh create sys icall script $icall_script_name definition { exec bash $script_loc }
-    tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence now interval 120 script /Common/$icall_script_name }
+    tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence now interval ${cluster_update_interval} script /Common/$icall_script_name }
 else
     echo "Appears the $icall_handler_name icall already exists!"
 fi
@@ -285,7 +298,7 @@ if [[ ! -z $app_insights_key ]]; then
     tmsh list sys icall handler | grep $icall_handler_name
     if [[ $? != 0 ]]; then
         tmsh create sys icall script $icall_script_name definition { exec /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs-azure/scripts/appInsightsProvider.js --key $app_insights_key --mgmt-port $mgmt_port --log-level info }
-        tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence now interval 60 script /Common/$icall_script_name }
+        tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence now interval ${metrics_collector_interval} script /Common/$icall_script_name }
         # Check to determine when the custom Application Insights metric just created (possibly)
         # is available for consumption by VM Scale sets
         if [ -f /config/cloud/master ]; then
@@ -328,7 +341,7 @@ if [[ ! -z $backup_ucs ]]; then
     tmsh list sys icall handler | grep $icall_handler_name
     if [[ $? != 0 ]]; then
         tmsh create sys icall script $icall_script_name definition { exec bash $script_loc }
-        tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence `date +%Y-%m-%d`:23:59:59 interval 86400 script /Common/$icall_script_name }
+        tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence `date +%Y-%m-%d`:23:59:59 interval ${backup_ucs_interval} script /Common/$icall_script_name }
     else
         echo "Appears the $icall_handler_name icall already exists!"
     fi
