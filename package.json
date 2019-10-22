@@ -17,7 +17,6 @@
   },
   "license": "Apache-2.0",
   "dependencies": {
-    "@f5devcentral/f5-cloud-libs": "^4.10.3",
     "ajv": "^6.2.1",
     "applicationinsights": "^1.0.4",
     "azure-arm-appinsights": "^2.0.0",
