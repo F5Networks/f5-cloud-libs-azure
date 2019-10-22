@@ -53,7 +53,7 @@ let receivedTenantId;
 let receivedAzureEnvironment;
 
 let azureLocation;
-
+let deleteBlobIfExistsCalled = false;
 // Our tests cause too many event listeners. Turn off the check.
 process.setMaxListeners(0);
 
@@ -378,6 +378,34 @@ module.exports = {
                     test.notStrictEqual(err.message.indexOf('not found in metadata'), -1);
                 })
                 .finally(() => {
+                    test.done();
+                });
+        }
+    },
+
+    testDeleteStoredUcs: {
+        setUp(callback) {
+            provider.storageClient = {
+                deleteBlobIfExists: function(c,n, cb) {
+                    deleteBlobIfExistsCalled = true;
+                    cb(null, 'Success');
+                },
+                BACKUP_CONTAINER: 'backup'
+            };
+
+            callback();
+        },
+        testExists(test) {
+            provider.deleteStoredUcs('foo.ucs')
+                .then(() => {
+                    test.ok(true);
+                    test.ok(deleteBlobIfExistsCalled);
+                })
+                .catch((err) => {
+                    test.ok(false, err.message);
+                })
+                .finally(() => {
+                    deleteBlobIfExistsCalled = false;
                     test.done();
                 });
         }
