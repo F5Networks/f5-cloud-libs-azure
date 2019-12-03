@@ -35,6 +35,9 @@ while [[ $# -gt 1 ]]; do
         --usageAnalytics)
             usage_analytics=$2
             shift 2;;
+        --autoscaleTimeout)
+            autoscale_timeout=$2
+            shift 2;;
         --as3Build)
             as3_build=$2
             shift 2;;
@@ -106,6 +109,10 @@ done
 
 block_sync=""
 
+if [[ -z $autoscale_timeout ]]; then
+    autoscale_timeout=10
+fi
+echo "Autoscale timeout: $autoscale_timeout in minutes"
 echo "Requested modules for provisioning ${big_ip_modules}"
 
 waf_required_modules=('ltm' 'asm')
@@ -240,13 +247,20 @@ if [[ ! -z $big_iq_address ]]; then
         via_api=$(/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs-azure/scripts/scaleSetProvider.js --instance-id $instance_id $nat_base)
         big_ip_ext_mgmt_port=$(echo $via_api | awk -F 'instanceInfo: ' '{print $2}' | jq .port --raw-output)
     fi
+    big_ip_ext_mgmt_addr_param=" --big-ip-mgmt-address $big_ip_ext_mgmt_addr"
     if [[ $big_ip_ext_mgmt_addr == *"via-api"* ]]; then
         ## Have to go get MGMT Public IP from VMSS ##
         via_api=$(/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs-azure/scripts/scaleSetProvider.js --instance-id $instance_id $nat_base)
         big_ip_ext_mgmt_addr=$(echo $via_api | awk -F 'instanceInfo: ' '{print $2}' | jq .publicIp --raw-output)
+        echo "BIG-IP via BIG-IQ Info... IP: $big_ip_ext_mgmt_addr Port: $big_ip_ext_mgmt_port"
+        big_ip_ext_mgmt_addr_param=" --big-ip-mgmt-address $big_ip_ext_mgmt_addr"
     fi
-    echo "BIG-IP via BIG-IQ Info... IP: $big_ip_ext_mgmt_addr Port: $big_ip_ext_mgmt_port"
-    /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --onboard "--install-ilx-package file:///var/config/rest/downloads/$as3_build --output /var/log/cloud/azure/onboard.log --log-level $log_level --cloud azure --host $self_ip --port $dfl_mgmt_port --ssl-port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted --hostname $instance.azuresecurity.com --license-pool --big-iq-host $big_iq_address --big-iq-user $big_iq_user --big-iq-password-uri file://$big_iq_password --big-iq-password-encrypted --license-pool-name $big_iq_lic_pool_name $big_iq_extra_lic_options --big-ip-mgmt-address $big_ip_ext_mgmt_addr --big-ip-mgmt-port $big_ip_ext_mgmt_port --ntp $ntp_server --tz $time_zone --db provision.1nicautoconfig:disable --db tmm.maxremoteloglength:2048 $usage_analytics --modules $big_ip_modules --no-reboot --signal ONBOARD_DONE" --autoscale "--wait-for ONBOARD_DONE --output /var/log/cloud/azure/autoscale.log --log-level $log_level --host $self_ip --port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted --cloud azure --license-pool --big-iq-host $big_iq_address --big-iq-user $big_iq_user --big-iq-password-uri file://$big_iq_password --big-iq-password-encrypted --license-pool-name $big_iq_lic_pool_name --big-ip-mgmt-address $big_ip_ext_mgmt_addr --big-ip-mgmt-port $big_ip_ext_mgmt_port $static $external_tag --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,azCredentialsEncrypted:true,resourceGroup:$resource_group --cluster-action join $block_sync --device-group Sync $dns_options"
+    if [[ $big_ip_ext_mgmt_addr == *"private"* ]]; then
+        ## Have to get private mgmt address via device-info. Setting to "" value to instruct cloud-libs to use device-info
+        big_ip_ext_mgmt_addr_param=""
+    fi
+
+    /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --onboard "--install-ilx-package file:///var/config/rest/downloads/$as3_build --output /var/log/cloud/azure/onboard.log --log-level $log_level --cloud azure --host $self_ip --port $dfl_mgmt_port --ssl-port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted --hostname $instance.azuresecurity.com --license-pool --big-iq-host $big_iq_address --big-iq-user $big_iq_user --big-iq-password-uri file://$big_iq_password --big-iq-password-encrypted --license-pool-name $big_iq_lic_pool_name $big_iq_extra_lic_options $big_ip_ext_mgmt_addr_param --big-ip-mgmt-port $big_ip_ext_mgmt_port --ntp $ntp_server --tz $time_zone --db provision.1nicautoconfig:disable --db tmm.maxremoteloglength:2048 $usage_analytics --modules $big_ip_modules --no-reboot --signal ONBOARD_DONE" --autoscale "--wait-for ONBOARD_DONE --output /var/log/cloud/azure/autoscale.log --log-level $log_level --host $self_ip --port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted --cloud azure --license-pool --big-iq-host $big_iq_address --big-iq-user $big_iq_user --big-iq-password-uri file://$big_iq_password --big-iq-password-encrypted --license-pool-name $big_iq_lic_pool_name $big_ip_ext_mgmt_addr_param --big-ip-mgmt-port $big_ip_ext_mgmt_port $static $external_tag --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,azCredentialsEncrypted:true,resourceGroup:$resource_group --cluster-action join $block_sync --device-group Sync $dns_options"
 else
     # Assume PAYG and licensing is already handled
     echo "Licensing via PAYG, already completed"
@@ -275,9 +289,9 @@ fi
 # Create cluster update iCall and script
 script_loc="/config/cloud/clusterUpdateScript.sh"
 if [[ ! -z $big_iq_address ]]; then
-    echo "/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --autoscale \"--cloud azure --log-level $log_level --output /var/log/cloud/azure/autoscale.log --host localhost --port $mgmt_port --user $user --password-url file://$passwd_file --password-encrypted $static $external_tag --license-pool --big-iq-host $big_iq_address --big-iq-user $big_iq_user --big-iq-password-uri file://$big_iq_password --big-iq-password-encrypted --license-pool-name $big_iq_lic_pool_name --big-ip-mgmt-address $big_ip_ext_mgmt_addr --big-ip-mgmt-port $big_ip_ext_mgmt_port --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,azCredentialsEncrypted:true,resourceGroup:$resource_group --cluster-action update --device-group Sync $dns_options\"" > $script_loc
+    echo "/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --autoscale \"--cloud azure --log-level $log_level --output /var/log/cloud/azure/autoscale.log --host localhost --port $mgmt_port --user $user --password-url file://$passwd_file --password-encrypted $static $external_tag --license-pool --big-iq-host $big_iq_address --big-iq-user $big_iq_user --big-iq-password-uri file://$big_iq_password --big-iq-password-encrypted --autoscale-timeout $autoscale_timeout --license-pool-name $big_iq_lic_pool_name --big-ip-mgmt-address $big_ip_ext_mgmt_addr --big-ip-mgmt-port $big_ip_ext_mgmt_port --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,azCredentialsEncrypted:true,resourceGroup:$resource_group --cluster-action update --device-group Sync $dns_options\"" > $script_loc
 else
-    echo "/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --autoscale \"--cloud azure --log-level $log_level --output /var/log/cloud/azure/autoscale.log --host localhost --port $mgmt_port --user $user --password-url file://$passwd_file --password-encrypted $static $external_tag --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,azCredentialsEncrypted:true,resourceGroup:$resource_group --cluster-action update --device-group Sync $dns_options\"" > $script_loc
+    echo "/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --autoscale \"--cloud azure --log-level $log_level --output /var/log/cloud/azure/autoscale.log --host localhost --port $mgmt_port --user $user --password-url file://$passwd_file --password-encrypted $static $external_tag --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,azCredentialsEncrypted:true,resourceGroup:$resource_group --cluster-action update --autoscale-timeout $autoscale_timeout --device-group Sync $dns_options\"" > $script_loc
 fi
 icall_handler_name="ClusterUpdateHandler"
 icall_script_name="ClusterUpdate"
