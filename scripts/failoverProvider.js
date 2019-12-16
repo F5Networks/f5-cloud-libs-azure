@@ -697,12 +697,14 @@ function matchNics(nics, vs, selfIps, tgs, global) {
 
     let myNsg;
     let myIpForwarding;
+    let myEnableAcceleratedNetworking;
     let myTags;
     let ourLocation;
 
     let theirNsg;
     let theirTags;
     let theirIpForwarding;
+    let theirEnableAcceleratedNetworking;
 
     let associateArr = [];
     let disassociateArr = [];
@@ -862,6 +864,8 @@ function matchNics(nics, vs, selfIps, tgs, global) {
                 theirNsg = theirNicsArr[h].nic.networkSecurityGroup;
                 myNsg = myNicsArr[s].nic.networkSecurityGroup;
                 theirIpForwarding = theirNicsArr[h].nic.enableIPForwarding;
+                theirEnableAcceleratedNetworking = theirNicsArr[h].nic.enableAcceleratedNetworking;
+                myEnableAcceleratedNetworking = myNicsArr[s].nic.enableAcceleratedNetworking;
                 myIpForwarding = myNicsArr[s].nic.enableIPForwarding;
                 theirTags = theirNicsArr[h].nic.tags;
                 myTags = myNicsArr[s].nic.tags;
@@ -885,14 +889,16 @@ function matchNics(nics, vs, selfIps, tgs, global) {
                     ipConfigurations: theirNicArr,
                     networkSecurityGroup: theirNsg,
                     tags: theirTags,
-                    enableIPForwarding: theirIpForwarding
+                    enableIPForwarding: theirIpForwarding,
+                    enableAcceleratedNetworking: theirEnableAcceleratedNetworking
                 };
                 const myNicParams = {
                     location: ourLocation,
                     ipConfigurations: myNicArr,
                     networkSecurityGroup: myNsg,
                     tags: myTags,
-                    enableIPForwarding: myIpForwarding
+                    enableIPForwarding: myIpForwarding,
+                    enableAcceleratedNetworking: myEnableAcceleratedNetworking
                 };
 
                 disassociateArr.push([resourceGroup, theirNicsArr[h].nic.name, theirNicParams,
