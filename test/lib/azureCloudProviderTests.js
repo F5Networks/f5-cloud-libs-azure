@@ -247,35 +247,43 @@ module.exports = {
             };
 
             azureComputeMock.virtualMachineScaleSetVMs = {
-                list(resourceGroup, scaleSetName, cb) {
+                list(resourceGroup, scaleSetName, options, cb) {
                     cb(
                         null,
                         [
                             {
                                 instanceId: '123',
                                 provisioningState: 'Succeeded',
-                                name: 'instance123'
+                                name: 'instance123',
+                                instanceView: {
+                                    statuses: [
+                                        {
+                                            code: "ProvisioningState/succeeded",
+                                            level: "Info",
+                                            displayStatus: "Ready",
+                                            message: "Guest Agent is running",
+                                            time: "2020-02-03T19:17:07.000Z"
+                                        }
+                                    ]
+                                }
                             },
                             {
                                 instanceId: '456',
                                 provisioningState: 'Succeeded',
-                                name: 'instance456'
+                                name: 'instance456',
+                                instanceView: {
+                                    statuses: [
+                                        {
+                                            code: "ProvisioningState/succeeded",
+                                            level: "Info",
+                                            displayStatus: "Ready",
+                                            message: "Guest Agent is running",
+                                            time: "2020-02-03T19:17:07.000Z"
+                                        }
+                                    ]
+                                }
                             }
                         ]
-                    );
-                },
-                getInstanceView(resourceGroup, scaleSetName, instanceId, cb) {
-                    cb(
-                        null,
-                        {
-                            instanceId,
-                            statuses: [
-                                {
-                                    code: 'PowerState/running',
-                                    displayStatus: 'VM running'
-                                }
-                            ],
-                        }
                     );
                 }
             };
@@ -425,35 +433,43 @@ module.exports = {
             };
 
             azureComputeMock.virtualMachineScaleSetVMs = {
-                list(resourceGroup, scaleSetName, cb) {
+                list(resourceGroup, scaleSetName, options, cb) {
                     cb(
                         null,
                         [
                             {
                                 instanceId: '123',
                                 provisioningState: 'Succeeded',
-                                id: 'instance/123'
+                                id: 'instance/123',
+                                instanceView: {
+                                    statuses: [
+                                        {
+                                            code: "ProvisioningState/succeeded",
+                                            level: "Info",
+                                            displayStatus: "Ready",
+                                            message: "Guest Agent is running",
+                                            time: "2020-02-03T19:17:07.000Z"
+                                        }
+                                    ]
+                                }
                             },
                             {
                                 instanceId: '456',
                                 provisioningState: 'Succeeded',
-                                id: 'instance/456'
+                                id: 'instance/456',
+                                instanceView: {
+                                    statuses: [
+                                        {
+                                            code: "ProvisioningState/succeeded",
+                                            level: "Info",
+                                            displayStatus: "Ready",
+                                            message: "Guest Agent is running",
+                                            time: "2020-02-03T19:17:07.000Z"
+                                        }
+                                    ]
+                                }
                             }
                         ]
-                    );
-                },
-                getInstanceView(resourceGroup, scaleSetName, instanceId, cb) {
-                    cb(
-                        null,
-                        {
-                            instanceId,
-                            statuses: [
-                                {
-                                    code: 'PowerState/running',
-                                    displayStatus: 'VM running'
-                                }
-                            ],
-                        }
                     );
                 }
             };
@@ -621,35 +637,44 @@ module.exports = {
 
         testNotProviderVisibleProvisioningState(test) {
             azureComputeMock.virtualMachineScaleSetVMs = {
-                list(resourceGroup, scaleSetName, cb) {
+                list(resourceGroup, scaleSetName, options, cb) {
                     cb(
                         null,
                         [
                             {
                                 instanceId: '123',
                                 provisioningState: 'Failed',
-                                id: 'instance/123'
+                                id: 'instance/123',
+                                instanceView: {
+                                    statuses: [
+                                        {
+                                            code: "ProvisioningState/succeeded",
+                                            level: "Info",
+                                            displayStatus: "Ready",
+                                            message: "Guest Agent is running",
+                                            time: "2020-02-03T19:17:07.000Z"
+                                        }
+                                    ]
+                                }
                             },
                             {
                                 instanceId: '456',
                                 provisioningState: 'Succeeded',
-                                id: 'instance/456'
+                                id: 'instance/456',
+                                instanceView: {
+                                    instanceId: '456',
+                                    statuses: [
+                                        {
+                                            code: "ProvisioningState/succeeded",
+                                            level: "Info",
+                                            displayStatus: "Ready",
+                                            message: "Guest Agent is running",
+                                            time: "2020-02-03T19:17:07.000Z"
+                                        }
+                                    ]
+                                }
                             }
                         ]
-                    );
-                },
-                getInstanceView(resourceGroup, scaleSetName, instanceId, cb) {
-                    cb(
-                        null,
-                        {
-                            instanceId,
-                            statuses: [
-                                {
-                                    code: 'PowerState/running',
-                                    displayStatus: 'VM running'
-                                }
-                            ],
-                        }
                     );
                 }
             };
@@ -686,39 +711,43 @@ module.exports = {
 
         testNotProviderVisiblePowerState(test) {
             azureComputeMock.virtualMachineScaleSetVMs = {
-                list(resourceGroup, scaleSetName, cb) {
+                list(resourceGroup, scaleSetName, options, cb) {
                     cb(
                         null,
                         [
                             {
                                 instanceId: '123',
                                 provisioningState: 'Succeeded',
-                                id: 'instance/123'
+                                id: 'instance/123',
+                                instanceView: {
+                                    statuses: [
+                                        {
+                                            code: "ProvisioningState/succeeded",
+                                            level: "Info",
+                                            displayStatus: "Ready",
+                                            message: "Guest Agent is running",
+                                            time: "2020-02-03T19:17:07.000Z"
+                                        }
+                                    ]
+                                }
                             },
                             {
                                 instanceId: '456',
                                 provisioningState: 'Succeeded',
-                                id: 'instance/456'
+                                id: 'instance/456',
+                                instanceView: {
+                                    statuses: [
+                                        {
+                                            code: "powerstate/deallocated",
+                                            level: "Info",
+                                            displayStatus: "Ready",
+                                            message: "Guest Agent is running",
+                                            time: "2020-02-03T19:17:07.000Z"
+                                        }
+                                    ]
+                                }
                             }
                         ]
-                    );
-                },
-                getInstanceView(resourceGroup, scaleSetName, instanceId, cb) {
-                    let powerState = 'running';
-                    if (instanceId === '456') {
-                        powerState = 'deallocated';
-                    }
-                    cb(
-                        null,
-                        {
-                            instanceId,
-                            statuses: [
-                                {
-                                    code: `PowerState/${powerState}`,
-                                    displayStatus: `VM ${powerState}`
-                                }
-                            ],
-                        }
                     );
                 }
             };
@@ -755,25 +784,44 @@ module.exports = {
 
         testNotProviderVisiblePowerStateFunctionError(test) {
             azureComputeMock.virtualMachineScaleSetVMs = {
-                list(resourceGroup, scaleSetName, cb) {
+                list(resourceGroup, scaleSetName, options, cb) {
                     cb(
                         null,
                         [
                             {
                                 instanceId: '123',
                                 provisioningState: 'Succeeded',
-                                id: 'instance/123'
+                                id: 'instance/123',
+                                instanceView: {
+                                    statuses: [
+                                        {
+                                            code: "ProvisioningState/succeeded",
+                                            level: "Info",
+                                            displayStatus: "Ready",
+                                            message: "Guest Agent is running",
+                                            time: "2020-02-03T19:17:07.000Z"
+                                        }
+                                    ]
+                                }
                             },
                             {
                                 instanceId: '456',
                                 provisioningState: 'Succeeded',
-                                id: 'instance/456'
+                                id: 'instance/456',
+                                instanceView: {
+                                    statuses: [
+                                        {
+                                            code: "ProvisioningState/succeeded",
+                                            level: "Info",
+                                            displayStatus: "Ready",
+                                            message: "Guest Agent is running",
+                                            time: "2020-02-03T19:17:07.000Z"
+                                        }
+                                    ]
+                                }
                             }
                         ]
                     );
-                },
-                getInstanceView(resourceGroup, scaleSetName, instanceId, cb) {
-                    cb('some error', []);
                 }
             };
 
