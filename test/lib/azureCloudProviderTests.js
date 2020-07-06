@@ -535,7 +535,7 @@ module.exports = {
                     test.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
                     test.strictEqual(instances['123'].providerVisible, true);
                     test.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['123'].isMaster, false);
+                    test.strictEqual(instances['123'].isPrimary, false);
                     test.strictEqual(instances['123'].external, false);
                     test.strictEqual(instances['123'].lastBackup, new Date(1970, 1, 1).getTime());
                     test.strictEqual(instances['123'].versionOk, true);
@@ -545,7 +545,7 @@ module.exports = {
                     test.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
                     test.strictEqual(instances['456'].providerVisible, true);
                     test.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['456'].isMaster, false);
+                    test.strictEqual(instances['456'].isPrimary, false);
                     test.strictEqual(instances['456'].external, false);
                     test.strictEqual(instances['456'].lastBackup, new Date(1970, 1, 1).getTime());
                     test.strictEqual(instances['456'].versionOk, true);
@@ -579,23 +579,23 @@ module.exports = {
                 switch (name) {
                 case '123':
                     instance = {
-                        isMaster: true,
+                        isPrimary: true,
                         mgmtIp: '5.6.7.8',
                         privateIp: '5.6.7.8',
                         publicIp: '123.456.789.1',
                         hostname: '5.6.7.8_myHostname',
                         providerVisible: true,
-                        masterStatus: {}
+                        primaryStatus: {}
                     };
                     break;
                 case '456':
                     instance = {
-                        isMaster: false,
+                        isPrimary: false,
                         mgmtIp: '7.8.9.0',
                         privateIp: '7.8.9.0',
                         hostname: '7.8.9.0_myHostname',
                         providerVisible: true,
-                        masterStatus: {}
+                        primaryStatus: {}
                     };
                     break;
                 default:
@@ -614,16 +614,16 @@ module.exports = {
                             publicIp: '123.456.789.1',
                             hostname: '5.6.7.8_myHostname',
                             providerVisible: true,
-                            isMaster: true,
-                            masterStatus: {}
+                            isPrimary: true,
+                            primaryStatus: {}
                         },
                         456: {
                             mgmtIp: '7.8.9.0',
                             privateIp: '7.8.9.0',
                             hostname: '7.8.9.0_myHostname',
                             providerVisible: true,
-                            isMaster: false,
-                            masterStatus: {}
+                            isPrimary: false,
+                            primaryStatus: {}
                         }
                     });
                 })
@@ -688,7 +688,7 @@ module.exports = {
                     test.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
                     test.strictEqual(instances['123'].providerVisible, false);
                     test.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['123'].isMaster, false);
+                    test.strictEqual(instances['123'].isPrimary, false);
                     test.strictEqual(instances['123'].external, false);
                     test.strictEqual(instances['123'].versionOk, true);
 
@@ -697,7 +697,7 @@ module.exports = {
                     test.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
                     test.strictEqual(instances['456'].providerVisible, true);
                     test.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['456'].isMaster, false);
+                    test.strictEqual(instances['456'].isPrimary, false);
                     test.strictEqual(instances['456'].external, false);
                     test.strictEqual(instances['456'].versionOk, true);
                 })
@@ -761,7 +761,7 @@ module.exports = {
                     test.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
                     test.strictEqual(instances['123'].providerVisible, true);
                     test.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['123'].isMaster, false);
+                    test.strictEqual(instances['123'].isPrimary, false);
                     test.strictEqual(instances['123'].external, false);
                     test.strictEqual(instances['123'].versionOk, true);
 
@@ -770,7 +770,7 @@ module.exports = {
                     test.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
                     test.strictEqual(instances['456'].providerVisible, false);
                     test.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['456'].isMaster, false);
+                    test.strictEqual(instances['456'].isPrimary, false);
                     test.strictEqual(instances['456'].external, false);
                     test.strictEqual(instances['456'].versionOk, true);
                 })
@@ -834,7 +834,7 @@ module.exports = {
                     test.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
                     test.strictEqual(instances['123'].providerVisible, true);
                     test.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['123'].isMaster, false);
+                    test.strictEqual(instances['123'].isPrimary, false);
                     test.strictEqual(instances['123'].external, false);
                     test.strictEqual(instances['123'].versionOk, true);
 
@@ -843,7 +843,7 @@ module.exports = {
                     test.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
                     test.strictEqual(instances['456'].providerVisible, true);
                     test.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['456'].isMaster, false);
+                    test.strictEqual(instances['456'].isPrimary, false);
                     test.strictEqual(instances['456'].external, false);
                     test.strictEqual(instances['456'].versionOk, true);
                 })
@@ -922,7 +922,7 @@ module.exports = {
                     test.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
                     test.strictEqual(instances['123'].providerVisible, true);
                     test.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['123'].isMaster, false);
+                    test.strictEqual(instances['123'].isPrimary, false);
                     test.strictEqual(instances['123'].external, false);
                     test.strictEqual(instances['123'].versionOk, true);
 
@@ -931,7 +931,7 @@ module.exports = {
                     test.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
                     test.strictEqual(instances['456'].providerVisible, true);
                     test.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['456'].isMaster, false);
+                    test.strictEqual(instances['456'].isPrimary, false);
                     test.strictEqual(instances['456'].external, false);
                     test.strictEqual(instances['456'].versionOk, true);
                 })
@@ -963,7 +963,7 @@ module.exports = {
         }
     },
 
-    testElectMaster: {
+    testElectPrimary: {
         testBasic(test) {
             const instances = {
                 123: {
@@ -983,7 +983,7 @@ module.exports = {
             };
 
             test.expect(1);
-            provider.electMaster(instances)
+            provider.electPrimary(instances)
                 .then((electedId) => {
                     test.strictEqual(electedId, '123');
                     test.done();
@@ -1009,7 +1009,7 @@ module.exports = {
             };
 
             test.expect(1);
-            provider.electMaster(instances)
+            provider.electPrimary(instances)
                 .then((electedId) => {
                     test.strictEqual(electedId, '456');
                     test.done();
@@ -1035,12 +1035,12 @@ module.exports = {
             };
 
             test.expect(1);
-            provider.electMaster(instances)
+            provider.electPrimary(instances)
                 .then(() => {
                     test.ok(false, 'should have thrown no instances');
                 })
                 .catch((err) => {
-                    test.strictEqual(err.message, 'No possible master found');
+                    test.strictEqual(err.message, 'No possible primary found');
                 })
                 .finally(() => {
                     test.done();
@@ -1066,7 +1066,7 @@ module.exports = {
             };
 
             test.expect(1);
-            provider.electMaster(instances)
+            provider.electPrimary(instances)
                 .then((electedId) => {
                     test.strictEqual(electedId, '456');
                     test.done();
@@ -1108,7 +1108,7 @@ module.exports = {
             };
 
             test.expect(1);
-            provider.electMaster(instances)
+            provider.electPrimary(instances)
                 .then((electedId) => {
                     test.strictEqual(electedId, '999');
                     test.done();
@@ -1119,7 +1119,7 @@ module.exports = {
             const instances = [];
 
             test.expect(1);
-            provider.electMaster(instances)
+            provider.electPrimary(instances)
                 .then(() => {
                     test.ok(false, 'should have thrown no instances');
                 })
@@ -1132,7 +1132,7 @@ module.exports = {
         }
     },
 
-    testGetMasterCredentials(test) {
+    testGetPrimaryCredentials(test) {
         const user = 'roger';
         const password = 'dodger';
 
@@ -1142,7 +1142,7 @@ module.exports = {
         provider.bigIp = bigIpMock;
 
         test.expect(1);
-        provider.getMasterCredentials()
+        provider.getPrimaryCredentials()
             .then((credentials) => {
                 test.deepEqual(credentials, {
                     password,
@@ -1152,7 +1152,7 @@ module.exports = {
             });
     },
 
-    testIsValidMaster: {
+    testIsValidPrimary: {
         setUp(callback) {
             bigIpMock.init = function init() {
                 return q();
@@ -1187,7 +1187,7 @@ module.exports = {
             };
 
             test.expect(1);
-            provider.isValidMaster(instanceId, instances)
+            provider.isValidPrimary(instanceId, instances)
                 .then((isValid) => {
                     test.strictEqual(isValid, true);
                 })
@@ -1209,7 +1209,7 @@ module.exports = {
             };
 
             test.expect(1);
-            provider.isValidMaster(instanceId, instances)
+            provider.isValidPrimary(instanceId, instances)
                 .then((isValid) => {
                     test.strictEqual(isValid, false);
                 })
@@ -1222,7 +1222,7 @@ module.exports = {
         }
     },
 
-    testTagMaster: {
+    testTagPrimary: {
         setUp(callback) {
             azureComputeMock.virtualMachineScaleSets = {
                 get(resourceGroup, scaleSetName, options, cb) {
@@ -1231,7 +1231,7 @@ module.exports = {
                             tags: {
                                 application: 'APP',
                                 cost: 'COST',
-                                'resourceGroupName-master': '10.0.1.4'
+                                'resourceGroupName-primary': '10.0.1.4'
                             }
                         });
                 },
@@ -1254,8 +1254,8 @@ module.exports = {
             callback();
         },
 
-        testTagMasterInstance(test) {
-            const masterIid = '456';
+        testTagPrimaryInstance(test) {
+            const primaryIid = '456';
             const instances = {
                 123: {
                     mgmtIp: '5.6.7.8',
@@ -1274,11 +1274,11 @@ module.exports = {
             };
 
             test.expect(3);
-            provider.tagMasterInstance(masterIid, instances)
+            provider.tagPrimaryInstance(primaryIid, instances)
                 .then(() => {
                     test.strictEqual(
-                        virtualMachineScaleSetUpdateParams.params.tags['resourceGroupName-master'],
-                        instances[masterIid].privateIp
+                        virtualMachineScaleSetUpdateParams.params.tags['resourceGroupName-primary'],
+                        instances[primaryIid].privateIp
                     );
                     test.strictEqual(virtualMachineScaleSetUpdateParams.params.tags.application, 'APP');
                     test.strictEqual(virtualMachineScaleSetUpdateParams.resourceGroup, 'resourceGroupName');
