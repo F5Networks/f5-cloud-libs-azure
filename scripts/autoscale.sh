@@ -267,15 +267,15 @@ else
     /usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs/scripts/azure/runScripts.js --base-dir /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs --log-level $log_level --onboard "--install-ilx-package file:///var/config/rest/downloads/$as3_build --output /var/log/cloud/azure/onboard.log --log-level $log_level --host $self_ip --port $dfl_mgmt_port --ssl-port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted --hostname $instance.azuresecurity.com --ntp $ntp_server --tz $time_zone --db provision.1nicautoconfig:disable --db tmm.maxremoteloglength:2048 $usage_analytics --modules $big_ip_modules --no-reboot --signal ONBOARD_DONE" --autoscale "--wait-for ONBOARD_DONE --output /var/log/cloud/azure/autoscale.log --log-level $log_level --host $self_ip --port $mgmt_port -u $user --password-url file://$passwd_file --password-encrypted --cloud azure $static $external_tag --provider-options scaleSet:$vmss_name,azCredentialsUrl:file://$azure_secret_file,azCredentialsEncrypted:true,resourceGroup:$resource_group --cluster-action join $block_sync --device-group Sync $dns_options"
 fi
 
-if [ -f /config/cloud/master ]; then
-    echo 'SELF-SELECTED as Master ... Initiating Autoscale Cluster'
+if [ -f /config/cloud/primary ]; then
+    echo 'SELF-SELECTED as Primary ... Initiating Autoscale Cluster'
     # Check if UCS is loaded
-    ucs_loaded=$(cat /config/cloud/master | jq .ucsLoaded)
+    ucs_loaded=$(cat /config/cloud/primary | jq .ucsLoaded)
     echo "UCS Loaded: $ucs_loaded"
 
     # If deploying an application service, run some additional commands
     if [[ ! -z $app_script_args ]]; then
-        # Deploy the application if master and ucs loaded equals false
+        # Deploy the application if primary and ucs loaded equals false
         if $ucs_loaded; then
             echo "NOTE: We are not deploying any applications as a UCS was loaded, and it takes precedence."
         else
@@ -315,7 +315,7 @@ if [[ ! -z $app_insights_key ]]; then
         tmsh create sys icall handler periodic /Common/$icall_handler_name { first-occurrence now interval ${metrics_collector_interval} script /Common/$icall_script_name }
         # Check to determine when the custom Application Insights metric just created (possibly)
         # is available for consumption by VM Scale sets
-        if [ -f /config/cloud/master ]; then
+        if [ -f /config/cloud/primary ]; then
             api_key_create=$(/usr/bin/f5-rest-node /config/cloud/azure/node_modules/@f5devcentral/f5-cloud-libs-azure/scripts/appInsightsApiKeyProvider.js --key-operation create | grep 'Response: ' | awk -F 'Response: ' '{print $2}')
             api_key=$(echo "$api_key_create" | jq -r .apiKey)
             api_key_id=$(echo "$api_key_create" | jq -r .id | awk -F '/apikeys/' '{print $2}')
