@@ -1,6 +1,6 @@
 {
   "name": "@f5devcentral/f5-cloud-libs-azure",
-  "version": "2.14.0",
+  "version": "2.15.0-beta.1",
   "description": "Azure implementation of f5-cloud-libs cloud provider code",
   "keywords": [
     "f5",
@@ -17,7 +17,8 @@
   },
   "license": "Apache-2.0",
   "dependencies": {
-    "ajv": "^6.2.1",
+    "@f5devcentral/f5-cloud-libs": "^4.22.0-beta.1",
+    "ajv": "^5.5.2",
     "applicationinsights": "^1.0.4",
     "azure-arm-appinsights": "^2.0.0",
     "azure-arm-compute": "^4.0.0",
