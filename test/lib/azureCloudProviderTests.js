@@ -258,11 +258,11 @@ module.exports = {
                                 instanceView: {
                                     statuses: [
                                         {
-                                            code: "ProvisioningState/succeeded",
-                                            level: "Info",
-                                            displayStatus: "Ready",
-                                            message: "Guest Agent is running",
-                                            time: "2020-02-03T19:17:07.000Z"
+                                            code: 'ProvisioningState/succeeded',
+                                            level: 'Info',
+                                            displayStatus: 'Ready',
+                                            message: 'Guest Agent is running',
+                                            time: '2020-02-03T19:17:07.000Z'
                                         }
                                     ]
                                 }
@@ -274,11 +274,11 @@ module.exports = {
                                 instanceView: {
                                     statuses: [
                                         {
-                                            code: "ProvisioningState/succeeded",
-                                            level: "Info",
-                                            displayStatus: "Ready",
-                                            message: "Guest Agent is running",
-                                            time: "2020-02-03T19:17:07.000Z"
+                                            code: 'ProvisioningState/succeeded',
+                                            level: 'Info',
+                                            displayStatus: 'Ready',
+                                            message: 'Guest Agent is running',
+                                            time: '2020-02-03T19:17:07.000Z'
                                         }
                                     ]
                                 }
@@ -444,11 +444,11 @@ module.exports = {
                                 instanceView: {
                                     statuses: [
                                         {
-                                            code: "ProvisioningState/succeeded",
-                                            level: "Info",
-                                            displayStatus: "Ready",
-                                            message: "Guest Agent is running",
-                                            time: "2020-02-03T19:17:07.000Z"
+                                            code: 'ProvisioningState/succeeded',
+                                            level: 'Info',
+                                            displayStatus: 'Ready',
+                                            message: 'Guest Agent is running',
+                                            time: '2020-02-03T19:17:07.000Z'
                                         }
                                     ]
                                 }
@@ -460,11 +460,11 @@ module.exports = {
                                 instanceView: {
                                     statuses: [
                                         {
-                                            code: "ProvisioningState/succeeded",
-                                            level: "Info",
-                                            displayStatus: "Ready",
-                                            message: "Guest Agent is running",
-                                            time: "2020-02-03T19:17:07.000Z"
+                                            code: 'ProvisioningState/succeeded',
+                                            level: 'Info',
+                                            displayStatus: 'Ready',
+                                            message: 'Guest Agent is running',
+                                            time: '2020-02-03T19:17:07.000Z'
                                         }
                                     ]
                                 }
@@ -648,11 +648,11 @@ module.exports = {
                                 instanceView: {
                                     statuses: [
                                         {
-                                            code: "ProvisioningState/succeeded",
-                                            level: "Info",
-                                            displayStatus: "Ready",
-                                            message: "Guest Agent is running",
-                                            time: "2020-02-03T19:17:07.000Z"
+                                            code: 'ProvisioningState/succeeded',
+                                            level: 'Info',
+                                            displayStatus: 'Ready',
+                                            message: 'Guest Agent is running',
+                                            time: '2020-02-03T19:17:07.000Z'
                                         }
                                     ]
                                 }
@@ -665,11 +665,11 @@ module.exports = {
                                     instanceId: '456',
                                     statuses: [
                                         {
-                                            code: "ProvisioningState/succeeded",
-                                            level: "Info",
-                                            displayStatus: "Ready",
-                                            message: "Guest Agent is running",
-                                            time: "2020-02-03T19:17:07.000Z"
+                                            code: 'ProvisioningState/succeeded',
+                                            level: 'Info',
+                                            displayStatus: 'Ready',
+                                            message: 'Guest Agent is running',
+                                            time: '2020-02-03T19:17:07.000Z'
                                         }
                                     ]
                                 }
@@ -722,11 +722,11 @@ module.exports = {
                                 instanceView: {
                                     statuses: [
                                         {
-                                            code: "ProvisioningState/succeeded",
-                                            level: "Info",
-                                            displayStatus: "Ready",
-                                            message: "Guest Agent is running",
-                                            time: "2020-02-03T19:17:07.000Z"
+                                            code: 'ProvisioningState/succeeded',
+                                            level: 'Info',
+                                            displayStatus: 'Ready',
+                                            message: 'Guest Agent is running',
+                                            time: '2020-02-03T19:17:07.000Z'
                                         }
                                     ]
                                 }
@@ -738,11 +738,11 @@ module.exports = {
                                 instanceView: {
                                     statuses: [
                                         {
-                                            code: "powerstate/deallocated",
-                                            level: "Info",
-                                            displayStatus: "Ready",
-                                            message: "Guest Agent is running",
-                                            time: "2020-02-03T19:17:07.000Z"
+                                            code: 'powerstate/deallocated',
+                                            level: 'Info',
+                                            displayStatus: 'Ready',
+                                            message: 'Guest Agent is running',
+                                            time: '2020-02-03T19:17:07.000Z'
                                         }
                                     ]
                                 }
@@ -795,11 +795,11 @@ module.exports = {
                                 instanceView: {
                                     statuses: [
                                         {
-                                            code: "ProvisioningState/succeeded",
-                                            level: "Info",
-                                            displayStatus: "Ready",
-                                            message: "Guest Agent is running",
-                                            time: "2020-02-03T19:17:07.000Z"
+                                            code: 'ProvisioningState/succeeded',
+                                            level: 'Info',
+                                            displayStatus: 'Ready',
+                                            message: 'Guest Agent is running',
+                                            time: '2020-02-03T19:17:07.000Z'
                                         }
                                     ]
                                 }
@@ -811,11 +811,11 @@ module.exports = {
                                 instanceView: {
                                     statuses: [
                                         {
-                                            code: "ProvisioningState/succeeded",
-                                            level: "Info",
-                                            displayStatus: "Ready",
-                                            message: "Guest Agent is running",
-                                            time: "2020-02-03T19:17:07.000Z"
+                                            code: 'ProvisioningState/succeeded',
+                                            level: 'Info',
+                                            displayStatus: 'Ready',
+                                            message: 'Guest Agent is running',
+                                            time: '2020-02-03T19:17:07.000Z'
                                         }
                                     ]
                                 }
@@ -956,6 +956,78 @@ module.exports = {
                 })
                 .catch((err) => {
                     test.strictEqual(err.message, errorMessage);
+                })
+                .finally(() => {
+                    test.done();
+                });
+        }
+    },
+
+    testGetNodesByResourceId: {
+        setUp(callback) {
+            azureNetworkMock.networkInterfaces = {
+                listVirtualMachineScaleSetNetworkInterfaces(resourceGroup, scaleSet, cb) {
+                    cb(null, [
+                        {
+                            id: '/subscriptions/mySubId/resourceGroups/myResourceGroup/providers/Microsoft.Compute/virtualMachineScaleSets/myScaleSetName/virtualMachines/3/networkInterfaces/nic1',
+                            virtualMachine: {
+                                id: 'instance/123'
+                            },
+                            ipConfigurations: [
+                                {
+                                    privateIPAddress: '5.6.7.8',
+                                    primary: true
+                                }
+                            ],
+                            primary: true
+                        },
+                        {
+                            virtualMachine: {
+                                id: 'instance/456'
+                            },
+                            ipConfigurations: [
+                                {
+                                    privateIPAddress: '7.8.9.0'
+                                }
+                            ]
+                        }
+                    ]);
+                }
+            };
+
+            provider.computeClient = azureComputeMock;
+            provider.networkClient = azureNetworkMock;
+            provider.scaleSet = 'my scale set';
+            provider.resourceGroup = 'my resource group';
+
+            callback();
+        },
+
+        testBasic(test) {
+            test.expect(2);
+
+            provider.getNodesByResourceId('resourceId', 'scaleSet')
+                .then((instances) => {
+                    test.strictEqual(instances.length, 1);
+                    test.strictEqual(instances[0].ip.private, '5.6.7.8');
+                })
+                .catch((err) => {
+                    test.ok(false, err);
+                })
+                .finally(() => {
+                    test.done();
+                });
+        },
+
+        testBadResourceType(test) {
+            test.expect(1);
+
+            provider.getNodesByResourceId('resourceId', 'resourceType')
+                .then(() => {
+                    test.ok(false, 'should have thrown');
+                })
+                .catch((err) => {
+                    test.notStrictEqual(err.message.indexOf('supported'), -1);
                 })
                 .finally(() => {
                     test.done();
