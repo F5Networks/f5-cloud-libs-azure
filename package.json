@@ -33,6 +33,11 @@
   "peerDependencies": {
     "@f5devcentral/f5-cloud-libs": "beta"
   },
+  "auditProcessor": {
+    "whitelist": [
+      "1523"
+    ]
+  },
   "devDependencies": {
     "eslint": "^4.16.0",
     "eslint-config-airbnb-base": "^12.1.0",
@@ -40,6 +45,7 @@
     "nodeunit": "^0.11"
   },
   "scripts": {
+    "audit": "npm audit --json > .auditReport.json; node scripts/auditProcessor.js",
     "lint": "node node_modules/eslint/bin/eslint lib scripts",
     "package": "bash ./package.sh",
     "test": "node node_modules/nodeunit/bin/nodeunit --reporter eclipse test test/lib test/scripts",
