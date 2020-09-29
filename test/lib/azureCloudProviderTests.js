@@ -16,49 +16,51 @@
 
 'use strict';
 
+const assert = require('assert');
+
 process.env.NODE_PATH = `${__dirname}/../../../`;
 require('module').Module._initPaths(); // eslint-disable-line no-underscore-dangle
 
 const q = require('q');
 
-const clientId = 'myClientId';
-const secret = 'mySecret';
-const tenantId = 'myTenantId';
-const subscriptionId = 'mySubscriptionId';
-const storageAccount = 'myStorageAccount';
-const storageKey = 'myStorageKey';
+describe('onboard tests', () => {
+    const clientId = 'myClientId';
+    const secret = 'mySecret';
+    const tenantId = 'myTenantId';
+    const subscriptionId = 'mySubscriptionId';
+    const storageAccount = 'myStorageAccount';
+    const storageKey = 'myStorageKey';
 
-let ucsEntries = [];
+    let ucsEntries = [];
 
-let authnMock;
-let icontrolMock;
-let azureMock;
-let azureNetworkMock;
-let azureStorageMock;
-let azureComputeMock;
-let bigIpMock;
-let utilMock;
-let localCryptoUtilMock;
-let AzureCloudProvider;
-let AutoscaleInstance;
-let provider;
-let createBlobFromTextParams;
-let virtualMachineScaleSetUpdateParams;
+    let authnMock;
+    let icontrolMock;
+    let azureMock;
+    let azureNetworkMock;
+    let azureStorageMock;
+    let azureComputeMock;
+    let bigIpMock;
+    let utilMock;
+    let localCryptoUtilMock;
+    let AzureCloudProvider;
+    let AutoscaleInstance;
+    let provider;
+    let createBlobFromTextParams;
+    let virtualMachineScaleSetUpdateParams;
 
-let getBlobToTextParams;
+    let getBlobToTextParams;
 
-let receivedClientId;
-let receivedSecret;
-let receivedTenantId;
-let receivedAzureEnvironment;
+    let receivedClientId;
+    let receivedSecret;
+    let receivedTenantId;
+    let receivedAzureEnvironment;
 
-let azureLocation;
-let deleteBlobIfExistsCalled = false;
-// Our tests cause too many event listeners. Turn off the check.
-process.setMaxListeners(0);
+    let azureLocation;
+    let deleteBlobIfExistsCalled = false;
+    // Our tests cause too many event listeners. Turn off the check.
+    process.setMaxListeners(0);
 
-module.exports = {
-    setUp(callback) {
+    beforeEach(() => {
         /* eslint-disable import/no-extraneous-dependencies, import/no-unresolved, global-require */
         utilMock = require('@f5devcentral/f5-cloud-libs').util;
         localCryptoUtilMock = require('@f5devcentral/f5-cloud-libs').localCryptoUtil;
@@ -88,19 +90,16 @@ module.exports = {
                 }
             };
         };
+    });
 
-        callback();
-    },
-
-    tearDown(callback) {
+    afterEach(() => {
         Object.keys(require.cache).forEach((key) => {
             delete require.cache[key];
         });
-        callback();
-    },
+    });
 
-    testInit: {
-        setUp(callback) {
+    describe('init tests', () => {
+        beforeEach(() => {
             const credentialsBlob = {
                 clientId,
                 secret,
@@ -140,11 +139,9 @@ module.exports = {
                 receivedAzureEnvironment = options.environment;
                 cb(null, { signRequest() { } });
             };
+        });
 
-            callback();
-        },
-
-        testAzureLogin(test) {
+        it('azure login test', (done) => {
             const providerOptions = {
                 scaleSet: 'myScaleSet',
                 resourceGroup: 'myResourceGroup',
@@ -153,14 +150,14 @@ module.exports = {
 
             provider.init(providerOptions)
                 .then(() => {
-                    test.strictEqual(receivedClientId, clientId);
-                    test.strictEqual(receivedSecret, secret);
-                    test.strictEqual(receivedTenantId, tenantId);
-                    test.done();
+                    assert.strictEqual(receivedClientId, clientId);
+                    assert.strictEqual(receivedSecret, secret);
+                    assert.strictEqual(receivedTenantId, tenantId);
+                    done();
                 });
-        },
+        });
 
-        testAzureGovLogin(test) {
+        it('azure gov test', (done) => {
             azureLocation = 'USGovArizona';
 
             const providerOptions = {
@@ -169,18 +166,17 @@ module.exports = {
                 azCredentialsUrl: 'file:///foo/bar'
             };
 
-            test.expect(4);
             provider.init(providerOptions)
                 .then(() => {
-                    test.strictEqual(receivedClientId, clientId);
-                    test.strictEqual(receivedSecret, secret);
-                    test.strictEqual(receivedTenantId, tenantId);
-                    test.strictEqual(receivedAzureEnvironment.name, 'AzureUSGovernment');
-                    test.done();
+                    assert.strictEqual(receivedClientId, clientId);
+                    assert.strictEqual(receivedSecret, secret);
+                    assert.strictEqual(receivedTenantId, tenantId);
+                    assert.strictEqual(receivedAzureEnvironment.name, 'AzureUSGovernment');
+                    done();
                 });
-        },
+        });
 
-        testProviderOptionsAzureGovLogin(test) {
+        it('provider options azure gov login test', (done) => {
             const providerOptions = {
                 scaleSet: 'myScaleSet',
                 resourceGroup: 'myResourceGroup',
@@ -188,18 +184,17 @@ module.exports = {
                 environment: 'AzureUSGovernment'
             };
 
-            test.expect(4);
             provider.init(providerOptions)
                 .then(() => {
-                    test.strictEqual(receivedClientId, clientId);
-                    test.strictEqual(receivedSecret, secret);
-                    test.strictEqual(receivedTenantId, tenantId);
-                    test.strictEqual(receivedAzureEnvironment.name, 'AzureUSGovernment');
-                    test.done();
+                    assert.strictEqual(receivedClientId, clientId);
+                    assert.strictEqual(receivedSecret, secret);
+                    assert.strictEqual(receivedTenantId, tenantId);
+                    assert.strictEqual(receivedAzureEnvironment.name, 'AzureUSGovernment');
+                    done();
                 });
-        },
+        });
 
-        testAzureLoginEncrypted(test) {
+        it('azure login encrypted test', (done) => {
             const providerOptions = {
                 scaleSet: 'myScaleSet',
                 resourceGroup: 'myResourceGroup',
@@ -209,35 +204,34 @@ module.exports = {
 
             provider.init(providerOptions)
                 .then(() => {
-                    test.strictEqual(receivedClientId, clientId);
-                    test.strictEqual(receivedSecret, secret);
-                    test.strictEqual(receivedTenantId, tenantId);
-                    test.done();
+                    assert.strictEqual(receivedClientId, clientId);
+                    assert.strictEqual(receivedSecret, secret);
+                    assert.strictEqual(receivedTenantId, tenantId);
+                    done();
                 });
-        },
+        });
 
-        testAzureLoginBadCredentialsUrl(test) {
+        it('azure login bad credentials url test', (done) => {
             const errorMessage = 'bad url';
             utilMock.getDataFromUrl = function getDataFromUrl() {
                 return q.reject(new Error(errorMessage));
             };
 
-            test.expect(1);
             provider.init({ azCredentialsUrl: 'file:///foo/bar' })
                 .then(() => {
-                    test.ok(false, 'Should have thrown bad url');
+                    assert.ok(false, 'Should have thrown bad url');
                 })
                 .catch((err) => {
-                    test.strictEqual(err.message, errorMessage);
+                    assert.strictEqual(err.message, errorMessage);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        }
-    },
-
-    testGetInstanceId: {
-        setUp(callback) {
+        });
+    });
+    
+    describe('get instance id tests', () => {
+        beforeEach(() => {
             utilMock.getDataFromUrl = function getDataFromUrl() {
                 return q({
                     compute: {
@@ -292,40 +286,36 @@ module.exports = {
             provider.networkClient = azureNetworkMock;
             provider.scaleSet = 'my scale set';
             provider.resourceGroup = 'my resource group';
+        });
 
-            callback();
-        },
-
-        testBasic(test) {
-            test.expect(1);
+        it('basic test', (done) => {
             provider.getInstanceId()
                 .then((instanceId) => {
-                    test.strictEqual(instanceId, '456');
+                    assert.strictEqual(instanceId, '456');
                 })
                 .catch((err) => {
-                    test.ok(false, err);
+                    assert.ok(false, err);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        },
+        });
 
-        testCached(test) {
+        it('cached test', (done) => {
             provider.instanceId = '789';
-            test.expect(1);
             provider.getInstanceId()
                 .then((instanceId) => {
-                    test.strictEqual(instanceId, '789');
+                    assert.strictEqual(instanceId, '789');
                 })
                 .catch((err) => {
-                    test.ok(false, err);
+                    assert.ok(false, err);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        },
+        });
 
-        testStatic(test) {
+        it('static test', (done) => {
             utilMock.getDataFromUrl = function getDataFromUrl() {
                 return q({
                     compute: {
@@ -337,20 +327,19 @@ module.exports = {
 
             provider.clOptions.static = true;
 
-            test.expect(1);
             provider.getInstanceId()
                 .then((instanceId) => {
-                    test.strictEqual(instanceId, '888');
+                    assert.strictEqual(instanceId, '888');
                 })
                 .catch((err) => {
-                    test.ok(false, err);
+                    assert.ok(false, err);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        },
+        });
 
-        testOurNameNotFound(test) {
+        it('out name not found test', (done) => {
             utilMock.getDataFromUrl = function getDataFromUrl() {
                 return q({
                     compute: {
@@ -359,40 +348,38 @@ module.exports = {
                 });
             };
 
-            test.expect(1);
             provider.getInstanceId()
                 .then(() => {
-                    test.ok(false, 'should have thrown id not found');
+                    assert.ok(false, 'should have thrown id not found');
                 })
                 .catch((err) => {
-                    test.notStrictEqual(err.message.indexOf('Unable to determine'), -1);
+                    assert.notStrictEqual(err.message.indexOf('Unable to determine'), -1);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        },
+        });
 
-        testBadMetaData(test) {
+        it('bad metadata test', (done) => {
             utilMock.getDataFromUrl = function getDataFromUrl() {
                 return q({});
             };
 
-            test.expect(1);
             provider.getInstanceId()
                 .then(() => {
-                    test.ok(false, 'should have thrown id not found');
+                    assert.ok(false, 'should have thrown id not found');
                 })
                 .catch((err) => {
-                    test.notStrictEqual(err.message.indexOf('not found in metadata'), -1);
+                    assert.notStrictEqual(err.message.indexOf('not found in metadata'), -1);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        }
-    },
+        });
+    });
 
-    testDeleteStoredUcs: {
-        setUp(callback) {
+    describe('delete stored ucs tests', () => {
+        beforeEach(() => {
             provider.storageClient = {
                 deleteBlobIfExists: function(c,n, cb) {
                     deleteBlobIfExistsCalled = true;
@@ -400,27 +387,26 @@ module.exports = {
                 },
                 BACKUP_CONTAINER: 'backup'
             };
+        });
 
-            callback();
-        },
-        testExists(test) {
+        it('exists test', (done) => {
             provider.deleteStoredUcs('foo.ucs')
                 .then(() => {
-                    test.ok(true);
-                    test.ok(deleteBlobIfExistsCalled);
+                    assert.ok(true);
+                    assert.ok(deleteBlobIfExistsCalled);
                 })
                 .catch((err) => {
-                    test.ok(false, err.message);
+                    assert.ok(false, err.message);
                 })
                 .finally(() => {
                     deleteBlobIfExistsCalled = false;
-                    test.done();
+                    done();
                 });
-        }
-    },
+        });
+    });
 
-    testGetInstances: {
-        setUp(callback) {
+    describe('get instances tests', () => {
+        beforeEach(() => {
             bigIpMock.prototype.init = function init(host) {
                 this.host = host;
                 return q();
@@ -521,44 +507,41 @@ module.exports = {
             provider.storageClient = azureStorageMock;
             provider.scaleSet = 'my scale set';
             provider.resourceGroup = 'my resource group';
+        });
 
-            callback();
-        },
-
-        testBasic(test) {
-            test.expect(19);
+        it('basic test', (done) => {
             provider.getInstances()
                 .then((instances) => {
-                    test.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
-                    test.strictEqual(instances['123'].privateIp, '5.6.7.8');
-                    test.strictEqual(instances['123'].publicIp, '123.456.789.1');
-                    test.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
-                    test.strictEqual(instances['123'].providerVisible, true);
-                    test.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['123'].isPrimary, false);
-                    test.strictEqual(instances['123'].external, false);
-                    test.strictEqual(instances['123'].lastBackup, new Date(1970, 1, 1).getTime());
-                    test.strictEqual(instances['123'].versionOk, true);
+                    assert.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
+                    assert.strictEqual(instances['123'].privateIp, '5.6.7.8');
+                    assert.strictEqual(instances['123'].publicIp, '123.456.789.1');
+                    assert.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
+                    assert.strictEqual(instances['123'].providerVisible, true);
+                    assert.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    assert.strictEqual(instances['123'].isPrimary, false);
+                    assert.strictEqual(instances['123'].external, false);
+                    assert.strictEqual(instances['123'].lastBackup, new Date(1970, 1, 1).getTime());
+                    assert.strictEqual(instances['123'].versionOk, true);
 
-                    test.strictEqual(instances['456'].mgmtIp, '7.8.9.0');
-                    test.strictEqual(instances['456'].privateIp, '7.8.9.0');
-                    test.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
-                    test.strictEqual(instances['456'].providerVisible, true);
-                    test.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['456'].isPrimary, false);
-                    test.strictEqual(instances['456'].external, false);
-                    test.strictEqual(instances['456'].lastBackup, new Date(1970, 1, 1).getTime());
-                    test.strictEqual(instances['456'].versionOk, true);
+                    assert.strictEqual(instances['456'].mgmtIp, '7.8.9.0');
+                    assert.strictEqual(instances['456'].privateIp, '7.8.9.0');
+                    assert.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
+                    assert.strictEqual(instances['456'].providerVisible, true);
+                    assert.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    assert.strictEqual(instances['456'].isPrimary, false);
+                    assert.strictEqual(instances['456'].external, false);
+                    assert.strictEqual(instances['456'].lastBackup, new Date(1970, 1, 1).getTime());
+                    assert.strictEqual(instances['456'].versionOk, true);
                 })
                 .catch((err) => {
-                    test.ok(false, err);
+                    assert.ok(false, err);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        },
+        });
 
-        testInstancesInDb(test) {
+        it('instances in db test', (done) => {
             azureStorageMock.listBlobsSegmented = function listBlobsSegmented(container, token, options, cb) {
                 cb(null,
                     {
@@ -604,10 +587,9 @@ module.exports = {
                 cb(null, JSON.stringify(instance));
             };
 
-            test.expect(1);
             provider.getInstances()
                 .then((instances) => {
-                    test.deepEqual(instances, {
+                    assert.deepEqual(instances, {
                         123: {
                             mgmtIp: '5.6.7.8',
                             privateIp: '5.6.7.8',
@@ -628,14 +610,14 @@ module.exports = {
                     });
                 })
                 .catch((err) => {
-                    test.ok(false, err);
+                    assert.ok(false, err);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        },
+        });
 
-        testNotProviderVisibleProvisioningState(test) {
+        it('Not Provider Visible Provisioning State test', (done) => {
             azureComputeMock.virtualMachineScaleSetVMs = {
                 list(resourceGroup, scaleSetName, options, cb) {
                     cb(
@@ -679,37 +661,36 @@ module.exports = {
                 }
             };
 
-            test.expect(17);
             provider.getInstances()
                 .then((instances) => {
-                    test.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
-                    test.strictEqual(instances['123'].privateIp, '5.6.7.8');
-                    test.strictEqual(instances['123'].publicIp, '123.456.789.1');
-                    test.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
-                    test.strictEqual(instances['123'].providerVisible, false);
-                    test.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['123'].isPrimary, false);
-                    test.strictEqual(instances['123'].external, false);
-                    test.strictEqual(instances['123'].versionOk, true);
+                    assert.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
+                    assert.strictEqual(instances['123'].privateIp, '5.6.7.8');
+                    assert.strictEqual(instances['123'].publicIp, '123.456.789.1');
+                    assert.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
+                    assert.strictEqual(instances['123'].providerVisible, false);
+                    assert.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    assert.strictEqual(instances['123'].isPrimary, false);
+                    assert.strictEqual(instances['123'].external, false);
+                    assert.strictEqual(instances['123'].versionOk, true);
 
-                    test.strictEqual(instances['456'].mgmtIp, '7.8.9.0');
-                    test.strictEqual(instances['456'].privateIp, '7.8.9.0');
-                    test.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
-                    test.strictEqual(instances['456'].providerVisible, true);
-                    test.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['456'].isPrimary, false);
-                    test.strictEqual(instances['456'].external, false);
-                    test.strictEqual(instances['456'].versionOk, true);
+                    assert.strictEqual(instances['456'].mgmtIp, '7.8.9.0');
+                    assert.strictEqual(instances['456'].privateIp, '7.8.9.0');
+                    assert.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
+                    assert.strictEqual(instances['456'].providerVisible, true);
+                    assert.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    assert.strictEqual(instances['456'].isPrimary, false);
+                    assert.strictEqual(instances['456'].external, false);
+                    assert.strictEqual(instances['456'].versionOk, true);
                 })
                 .catch((err) => {
-                    test.ok(false, err);
+                    assert.ok(false, err);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        },
+        });
 
-        testNotProviderVisiblePowerState(test) {
+        it('Not Provider Visible Power State test', (done) => {
             azureComputeMock.virtualMachineScaleSetVMs = {
                 list(resourceGroup, scaleSetName, options, cb) {
                     cb(
@@ -752,37 +733,36 @@ module.exports = {
                 }
             };
 
-            test.expect(17);
             provider.getInstances()
                 .then((instances) => {
-                    test.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
-                    test.strictEqual(instances['123'].privateIp, '5.6.7.8');
-                    test.strictEqual(instances['123'].publicIp, '123.456.789.1');
-                    test.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
-                    test.strictEqual(instances['123'].providerVisible, true);
-                    test.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['123'].isPrimary, false);
-                    test.strictEqual(instances['123'].external, false);
-                    test.strictEqual(instances['123'].versionOk, true);
+                    assert.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
+                    assert.strictEqual(instances['123'].privateIp, '5.6.7.8');
+                    assert.strictEqual(instances['123'].publicIp, '123.456.789.1');
+                    assert.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
+                    assert.strictEqual(instances['123'].providerVisible, true);
+                    assert.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    assert.strictEqual(instances['123'].isPrimary, false);
+                    assert.strictEqual(instances['123'].external, false);
+                    assert.strictEqual(instances['123'].versionOk, true);
 
-                    test.strictEqual(instances['456'].mgmtIp, '7.8.9.0');
-                    test.strictEqual(instances['456'].privateIp, '7.8.9.0');
-                    test.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
-                    test.strictEqual(instances['456'].providerVisible, false);
-                    test.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['456'].isPrimary, false);
-                    test.strictEqual(instances['456'].external, false);
-                    test.strictEqual(instances['456'].versionOk, true);
+                    assert.strictEqual(instances['456'].mgmtIp, '7.8.9.0');
+                    assert.strictEqual(instances['456'].privateIp, '7.8.9.0');
+                    assert.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
+                    assert.strictEqual(instances['456'].providerVisible, false);
+                    assert.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    assert.strictEqual(instances['456'].isPrimary, false);
+                    assert.strictEqual(instances['456'].external, false);
+                    assert.strictEqual(instances['456'].versionOk, true);
                 })
                 .catch((err) => {
-                    test.ok(false, err);
+                    assert.ok(false, err);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        },
+        });
 
-        testNotProviderVisiblePowerStateFunctionError(test) {
+        it('Not Provider Visible Power State Function Error test', (done) => {
             azureComputeMock.virtualMachineScaleSetVMs = {
                 list(resourceGroup, scaleSetName, options, cb) {
                     cb(
@@ -825,37 +805,36 @@ module.exports = {
                 }
             };
 
-            test.expect(17);
             provider.getInstances()
                 .then((instances) => {
-                    test.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
-                    test.strictEqual(instances['123'].privateIp, '5.6.7.8');
-                    test.strictEqual(instances['123'].publicIp, '123.456.789.1');
-                    test.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
-                    test.strictEqual(instances['123'].providerVisible, true);
-                    test.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['123'].isPrimary, false);
-                    test.strictEqual(instances['123'].external, false);
-                    test.strictEqual(instances['123'].versionOk, true);
+                    assert.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
+                    assert.strictEqual(instances['123'].privateIp, '5.6.7.8');
+                    assert.strictEqual(instances['123'].publicIp, '123.456.789.1');
+                    assert.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
+                    assert.strictEqual(instances['123'].providerVisible, true);
+                    assert.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    assert.strictEqual(instances['123'].isPrimary, false);
+                    assert.strictEqual(instances['123'].external, false);
+                    assert.strictEqual(instances['123'].versionOk, true);
 
-                    test.strictEqual(instances['456'].mgmtIp, '7.8.9.0');
-                    test.strictEqual(instances['456'].privateIp, '7.8.9.0');
-                    test.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
-                    test.strictEqual(instances['456'].providerVisible, true);
-                    test.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['456'].isPrimary, false);
-                    test.strictEqual(instances['456'].external, false);
-                    test.strictEqual(instances['456'].versionOk, true);
+                    assert.strictEqual(instances['456'].mgmtIp, '7.8.9.0');
+                    assert.strictEqual(instances['456'].privateIp, '7.8.9.0');
+                    assert.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
+                    assert.strictEqual(instances['456'].providerVisible, true);
+                    assert.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    assert.strictEqual(instances['456'].isPrimary, false);
+                    assert.strictEqual(instances['456'].external, false);
+                    assert.strictEqual(instances['456'].versionOk, true);
                 })
                 .catch((err) => {
-                    test.ok(false, err);
+                    assert.ok(false, err);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        },
+        });
 
-        testExternalTag(test) {
+        it('External tag test', (done) => {
             const externalTag = {
                 key: 'foo',
                 value: 'bar'
@@ -913,58 +892,56 @@ module.exports = {
                 );
             };
 
-            test.expect(17);
             provider.getInstances({ externalTag })
                 .then((instances) => {
-                    test.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
-                    test.strictEqual(instances['123'].privateIp, '5.6.7.8');
-                    test.strictEqual(instances['123'].publicIp, '123.456.789.1');
-                    test.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
-                    test.strictEqual(instances['123'].providerVisible, true);
-                    test.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['123'].isPrimary, false);
-                    test.strictEqual(instances['123'].external, false);
-                    test.strictEqual(instances['123'].versionOk, true);
+                    assert.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
+                    assert.strictEqual(instances['123'].privateIp, '5.6.7.8');
+                    assert.strictEqual(instances['123'].publicIp, '123.456.789.1');
+                    assert.strictEqual(instances['123'].hostname, '5.6.7.8_myHostname');
+                    assert.strictEqual(instances['123'].providerVisible, true);
+                    assert.strictEqual(instances['123'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    assert.strictEqual(instances['123'].isPrimary, false);
+                    assert.strictEqual(instances['123'].external, false);
+                    assert.strictEqual(instances['123'].versionOk, true);
 
-                    test.strictEqual(instances['456'].mgmtIp, '7.8.9.0');
-                    test.strictEqual(instances['456'].privateIp, '7.8.9.0');
-                    test.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
-                    test.strictEqual(instances['456'].providerVisible, true);
-                    test.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
-                    test.strictEqual(instances['456'].isPrimary, false);
-                    test.strictEqual(instances['456'].external, false);
-                    test.strictEqual(instances['456'].versionOk, true);
+                    assert.strictEqual(instances['456'].mgmtIp, '7.8.9.0');
+                    assert.strictEqual(instances['456'].privateIp, '7.8.9.0');
+                    assert.strictEqual(instances['456'].hostname, '7.8.9.0_myHostname');
+                    assert.strictEqual(instances['456'].providerVisible, true);
+                    assert.strictEqual(instances['456'].status, AutoscaleInstance.INSTANCE_STATUS_OK);
+                    assert.strictEqual(instances['456'].isPrimary, false);
+                    assert.strictEqual(instances['456'].external, false);
+                    assert.strictEqual(instances['456'].versionOk, true);
                 })
                 .catch((err) => {
-                    test.ok(false, err);
+                    assert.ok(false, err);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        },
+        });
 
-        testError(test) {
+        it('error test', (done) => {
             const errorMessage = 'some error occurred';
             bigIpMock.prototype.init = function init() {
                 return q.reject(new Error(errorMessage));
             };
 
-            test.expect(1);
             provider.getInstances()
                 .then(() => {
-                    test.ok(false, 'should have thrown');
+                    assert.ok(false, 'should have thrown');
                 })
                 .catch((err) => {
-                    test.strictEqual(err.message, errorMessage);
+                    assert.strictEqual(err.message, errorMessage);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        }
-    },
+        });
+    });
 
-    testGetNodesByResourceId: {
-        setUp(callback) {
+    describe('get nodes by resource id tests', () => {
+        beforeEach(() => {
             azureNetworkMock.networkInterfaces = {
                 listVirtualMachineScaleSetNetworkInterfaces(resourceGroup, scaleSet, cb) {
                     cb(null, [
@@ -999,44 +976,38 @@ module.exports = {
             provider.networkClient = azureNetworkMock;
             provider.scaleSet = 'my scale set';
             provider.resourceGroup = 'my resource group';
+        });
 
-            callback();
-        },
-
-        testBasic(test) {
-            test.expect(2);
-
+        it('basic test', (done) => {
             provider.getNodesByResourceId('resourceId', 'scaleSet')
                 .then((instances) => {
-                    test.strictEqual(instances.length, 1);
-                    test.strictEqual(instances[0].ip.private, '5.6.7.8');
+                    assert.strictEqual(instances.length, 1);
+                    assert.strictEqual(instances[0].ip.private, '5.6.7.8');
                 })
                 .catch((err) => {
-                    test.ok(false, err);
+                    assert.ok(false, err);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        },
+        });
 
-        testBadResourceType(test) {
-            test.expect(1);
-
+        it('bad resource type test', (done) => {
             provider.getNodesByResourceId('resourceId', 'resourceType')
                 .then(() => {
-                    test.ok(false, 'should have thrown');
+                    assert.ok(false, 'should have thrown');
                 })
                 .catch((err) => {
-                    test.notStrictEqual(err.message.indexOf('supported'), -1);
+                    assert.notStrictEqual(err.message.indexOf('supported'), -1);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        }
-    },
+        });
+    });
 
-    testElectPrimary: {
-        testBasic(test) {
+    describe('elect primary tests', () => {
+        it('basic test', (done) => {
             const instances = {
                 123: {
                     mgmtIp: '5.6.7.8',
@@ -1054,15 +1025,14 @@ module.exports = {
                 }
             };
 
-            test.expect(1);
             provider.electPrimary(instances)
                 .then((electedId) => {
-                    test.strictEqual(electedId, '123');
-                    test.done();
+                    assert.strictEqual(electedId, '123');
+                    done();
                 });
-        },
+        });
 
-        testLowestNotProviderVisible(test) {
+        it('lowest not provider visible test', (done) => {
             const instances = {
                 123: {
                     mgmtIp: '5.6.7.8',
@@ -1080,15 +1050,14 @@ module.exports = {
                 }
             };
 
-            test.expect(1);
             provider.electPrimary(instances)
                 .then((electedId) => {
-                    test.strictEqual(electedId, '456');
-                    test.done();
+                    assert.strictEqual(electedId, '456');
+                    done();
                 });
-        },
+        });
 
-        testNoProviderVisible(test) {
+        it('no provider visible test', (done) => {
             const instances = {
                 123: {
                     mgmtIp: '5.6.7.8',
@@ -1106,20 +1075,19 @@ module.exports = {
                 }
             };
 
-            test.expect(1);
             provider.electPrimary(instances)
                 .then(() => {
-                    test.ok(false, 'should have thrown no instances');
+                    assert.ok(false, 'should have thrown no instances');
                 })
                 .catch((err) => {
-                    test.strictEqual(err.message, 'No possible primary found');
+                    assert.strictEqual(err.message, 'No possible primary found');
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        },
+        });
 
-        testLowestNotVersionOk(test) {
+        it('lowest not version test', (done) => {
             const instances = {
                 123: {
                     mgmtIp: '5.6.7.8',
@@ -1137,15 +1105,14 @@ module.exports = {
                 }
             };
 
-            test.expect(1);
             provider.electPrimary(instances)
                 .then((electedId) => {
-                    test.strictEqual(electedId, '456');
-                    test.done();
+                    assert.strictEqual(electedId, '456');
+                    done();
                 });
-        },
+        });
 
-        testExternalInstances(test) {
+        it('external instances test', (done) => {
             const instances = {
                 123: {
                     mgmtIp: '5.6.7.8',
@@ -1179,32 +1146,30 @@ module.exports = {
                 }
             };
 
-            test.expect(1);
             provider.electPrimary(instances)
                 .then((electedId) => {
-                    test.strictEqual(electedId, '999');
-                    test.done();
+                    assert.strictEqual(electedId, '999');
+                    done();
                 });
-        },
+        });
 
-        testNoInstances(test) {
+        it('no instances test', (done) => {
             const instances = [];
 
-            test.expect(1);
             provider.electPrimary(instances)
                 .then(() => {
-                    test.ok(false, 'should have thrown no instances');
+                    assert.ok(false, 'should have thrown no instances');
                 })
                 .catch((err) => {
-                    test.strictEqual(err.message, 'No instances');
+                    assert.strictEqual(err.message, 'No instances');
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        }
-    },
+        });
+    });
 
-    testGetPrimaryCredentials(test) {
+    it('get primary credentials test', (done) => {
         const user = 'roger';
         const password = 'dodger';
 
@@ -1213,19 +1178,18 @@ module.exports = {
         bigIpMock.password = password;
         provider.bigIp = bigIpMock;
 
-        test.expect(1);
         provider.getPrimaryCredentials()
             .then((credentials) => {
-                test.deepEqual(credentials, {
+                assert.deepEqual(credentials, {
                     password,
                     username: user
                 });
-                test.done();
+                done();
             });
-    },
+    }).timeout(5000);
 
-    testIsValidPrimary: {
-        setUp(callback) {
+    describe('is valid primary tests', () => {
+        beforeEach(() => {
             bigIpMock.init = function init() {
                 return q();
             };
@@ -1246,10 +1210,9 @@ module.exports = {
                 icontrolMock.password = password;
                 return q.resolve(icontrolMock);
             };
-            callback();
-        },
+        });
 
-        testValid(test) {
+        it('valid test', (done) => {
             const instanceId = '123';
             const instances = {
                 123: {
@@ -1258,20 +1221,19 @@ module.exports = {
                 }
             };
 
-            test.expect(1);
             provider.isValidPrimary(instanceId, instances)
                 .then((isValid) => {
-                    test.strictEqual(isValid, true);
+                    assert.strictEqual(isValid, true);
                 })
                 .catch((err) => {
-                    test.ok(false, err);
+                    assert.ok(false, err);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        },
+        });
 
-        testNotValid(test) {
+        it('not valid test', (done) => {
             const instanceId = '123';
             const instances = {
                 123: {
@@ -1280,22 +1242,21 @@ module.exports = {
                 }
             };
 
-            test.expect(1);
             provider.isValidPrimary(instanceId, instances)
                 .then((isValid) => {
-                    test.strictEqual(isValid, false);
+                    assert.strictEqual(isValid, false);
                 })
                 .catch((err) => {
-                    test.ok(false, err);
+                    assert.ok(false, err);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        }
-    },
+        });
+    });
 
-    testTagPrimary: {
-        setUp(callback) {
+    describe('tag primary tests', () => {
+        beforeEach(() => {
             azureComputeMock.virtualMachineScaleSets = {
                 get(resourceGroup, scaleSetName, options, cb) {
                     cb(null,
@@ -1322,11 +1283,9 @@ module.exports = {
             provider.networkClient = azureNetworkMock;
             provider.scaleSet = 'scaleSetName';
             provider.resourceGroup = 'resourceGroupName';
+        });
 
-            callback();
-        },
-
-        testTagPrimaryInstance(test) {
+        it('tag primary instance test', (done) => {
             const primaryIid = '456';
             const instances = {
                 123: {
@@ -1345,27 +1304,26 @@ module.exports = {
                 }
             };
 
-            test.expect(3);
             provider.tagPrimaryInstance(primaryIid, instances)
                 .then(() => {
-                    test.strictEqual(
+                    assert.strictEqual(
                         virtualMachineScaleSetUpdateParams.params.tags['resourceGroupName-primary'],
                         instances[primaryIid].privateIp
                     );
-                    test.strictEqual(virtualMachineScaleSetUpdateParams.params.tags.application, 'APP');
-                    test.strictEqual(virtualMachineScaleSetUpdateParams.resourceGroup, 'resourceGroupName');
+                    assert.strictEqual(virtualMachineScaleSetUpdateParams.params.tags.application, 'APP');
+                    assert.strictEqual(virtualMachineScaleSetUpdateParams.resourceGroup, 'resourceGroupName');
                 })
                 .catch((err) => {
-                    test.ok(false, err);
+                    assert.ok(false, err);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        },
-    },
+        });
+    });
 
-    testGetStoredUcs: {
-        setUp(callback) {
+    describe('get stored ucs tests', () => {
+        beforeEach(() => {
             provider.storageClient = {
                 listBlobsSegmented(container, foo, bar, cb) {
                     cb(null, {
@@ -1377,11 +1335,9 @@ module.exports = {
                     return { name };
                 }
             };
+        });
 
-            callback();
-        },
-
-        testBasic(test) {
+        it('basic test', (done) => {
             ucsEntries = [
                 {
                     name: 'my.ucs',
@@ -1391,12 +1347,12 @@ module.exports = {
 
             provider.getStoredUcs()
                 .then((ucsData) => {
-                    test.strictEqual(ucsData.name, 'my.ucs');
-                    test.done();
+                    assert.strictEqual(ucsData.name, 'my.ucs');
+                    done();
                 });
-        },
+        });
 
-        testGetsLatest(test) {
+        it('gets latest test', (done) => {
             ucsEntries = [
                 {
                     name: 'old.ucs',
@@ -1410,42 +1366,41 @@ module.exports = {
 
             provider.getStoredUcs()
                 .then((ucsData) => {
-                    test.strictEqual(ucsData.name, 'new.ucs');
-                    test.done();
+                    assert.strictEqual(ucsData.name, 'new.ucs');
+                    done();
                 });
-        },
+        });
 
-        testNoUcsFiles(test) {
+        it('no ucs files test', (done) => {
             ucsEntries = [];
             provider.getStoredUcs()
                 .then((ucsData) => {
-                    test.strictEqual(ucsData, undefined);
-                    test.done();
+                    assert.strictEqual(ucsData, undefined);
+                    done();
                 });
-        },
+        });
 
-        testListBlobsSegmentedError(test) {
+        it('List Blobs Segmented Error test', (done) => {
             const errorMessage = 'foobar';
             provider.storageClient.listBlobsSegmented = function listBlobsSegmented(container, foo, bar, cb) {
                 cb(new Error(errorMessage));
             };
 
-            test.expect(1);
             provider.getStoredUcs()
                 .then(() => {
-                    test.ok(false, 'listBlobsSegmented should have thrown');
+                    assert.ok(false, 'listBlobsSegmented should have thrown');
                 })
                 .catch((err) => {
-                    test.strictEqual(err.message, errorMessage);
+                    assert.strictEqual(err.message, errorMessage);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        }
-    },
-
-    testPutInstance: {
-        setUp(callback) {
+        });
+    });
+    
+    describe('put instance tests', () => {
+        beforeEach(() => {
             azureStorageMock.createBlockBlobFromText = function createBlockBlobFromText(
                 container,
                 name,
@@ -1462,35 +1417,32 @@ module.exports = {
             createBlobFromTextParams = undefined;
 
             provider.storageClient = azureStorageMock;
+        });
 
-            callback();
-        },
-
-        testBasic(test) {
+        it('basic test', (done) => {
             const instanceId = '123';
             const instance = {
                 foo: 'bar'
             };
 
-            test.expect(3);
             provider.putInstance(instanceId, instance)
                 .then(() => {
                     const putData = JSON.parse(createBlobFromTextParams.data);
-                    test.strictEqual(createBlobFromTextParams.name, instanceId);
-                    test.strictEqual(putData.foo, instance.foo);
-                    test.notStrictEqual(putData.lastUpdate, undefined);
+                    assert.strictEqual(createBlobFromTextParams.name, instanceId);
+                    assert.strictEqual(putData.foo, instance.foo);
+                    assert.notStrictEqual(putData.lastUpdate, undefined);
                 })
                 .catch((err) => {
-                    test.ok(false, err);
+                    assert.ok(false, err);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        }
-    },
+        });
+    });
 
-    testGetDataFromUri: {
-        setUp(callback) {
+    describe('get data from uri tests', () => {
+        beforeEach(() => {
             azureStorageMock.getBlobToText = function getBlobToText(container, blob, cb) {
                 getBlobToTextParams = {
                     container,
@@ -1502,67 +1454,62 @@ module.exports = {
             provider.storageClient = azureStorageMock;
 
             getBlobToTextParams = undefined;
-            callback();
-        },
+        });
 
-        testBasic(test) {
-            test.expect(3);
+        it('basic test', (done) => {
             provider.getDataFromUri('https://account.blob.core.windows.net/myStuff/myFile')
                 .then((data) => {
-                    test.strictEqual(getBlobToTextParams.container, 'myStuff');
-                    test.strictEqual(getBlobToTextParams.blob, 'myFile');
-                    test.strictEqual(data, 'AzureBlobData');
+                    assert.strictEqual(getBlobToTextParams.container, 'myStuff');
+                    assert.strictEqual(getBlobToTextParams.blob, 'myFile');
+                    assert.strictEqual(data, 'AzureBlobData');
                 })
                 .catch((err) => {
-                    test.ok(false, err);
+                    assert.ok(false, err);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        },
+        });
 
-        testComplexKey(test) {
-            test.expect(3);
+        it('complex key test', (done) => {
             provider.getDataFromUri('https://account.blob.core.windows.net/myStuff/myFolder/myFile')
                 .then((data) => {
-                    test.strictEqual(getBlobToTextParams.container, 'myStuff');
-                    test.strictEqual(getBlobToTextParams.blob, 'myFolder/myFile');
-                    test.strictEqual(data, 'AzureBlobData');
+                    assert.strictEqual(getBlobToTextParams.container, 'myStuff');
+                    assert.strictEqual(getBlobToTextParams.blob, 'myFolder/myFile');
+                    assert.strictEqual(data, 'AzureBlobData');
                 })
                 .catch((err) => {
-                    test.ok(false, err);
+                    assert.ok(false, err);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        },
+        });
 
-        testInvalidUri(test) {
-            test.expect(1);
+        it('invalid uri test', (done) => {
             provider.getDataFromUri('myStuff/myFolder/myFile')
                 .then(() => {
-                    test.ok(false, 'Should have thrown invalid URI');
+                    assert.ok(false, 'Should have thrown invalid URI');
                 })
                 .catch((err) => {
-                    test.notStrictEqual(err.message.indexOf('Invalid URI'), -1);
+                    assert.notStrictEqual(err.message.indexOf('Invalid URI'), -1);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        },
+        });
 
-        testInvalidBlobPath(test) {
-            test.expect(1);
+        it('invalid blob path test', (done) => {
             provider.getDataFromUri('https://account.blob.core.windows.net/myStuff')
                 .then(() => {
-                    test.ok(false, 'Should have thrown invalid URI');
+                    assert.ok(false, 'Should have thrown invalid URI');
                 })
                 .catch((err) => {
-                    test.notStrictEqual(err.message.indexOf('Invalid URI'), -1);
+                    assert.notStrictEqual(err.message.indexOf('Invalid URI'), -1);
                 })
                 .finally(() => {
-                    test.done();
+                    done();
                 });
-        }
-    },
-};
+        });
+    });
+});
