@@ -17,43 +17,44 @@
 'use strict';
 
 const q = require('q');
+const assert = require('assert');
 
-let azureNetworkMock;
+describe('failover tests', () => {
+    let azureNetworkMock;
 
-let bigIpMock;
-let LoggerMock;
-let httpMock;
+    let bigIpMock;
+    let LoggerMock;
+    let httpMock;
 
-const loggedMessages = [];
-const ourSubscription = '1234-4567';
-const dissociateIntf = 'test-int0';
-const associateIntf = 'test-int1';
+    const loggedMessages = [];
+    const ourSubscription = '1234-4567';
+    const dissociateIntf = 'test-int0';
+    const associateIntf = 'test-int1';
 
-let failover;
-let logger;
-let instanceMetadata;
+    let failover;
+    let logger;
+    let instanceMetadata;
 
-const functionsCalled = {
-    bigIp: {},
-    azure: {
-        publicIPAddresses: {
-            list: []
+    const functionsCalled = {
+        bigIp: {},
+        azure: {
+            publicIPAddresses: {
+                list: []
+            },
+            networkInterfaces: {
+                get: [],
+                createOrUpdate: []
+            }
         },
-        networkInterfaces: {
-            get: [],
-            createOrUpdate: []
-        }
-    },
-    http: {},
-};
-const testOptions = {};
-let argv;
+        http: {},
+    };
+    const testOptions = {};
+    let argv;
 
-// Our tests cause too many event listeners. Turn off the check.
-process.setMaxListeners(0);
+    // Our tests cause too many event listeners. Turn off the check.
+    process.setMaxListeners(0);
 
-module.exports = {
-    setUp(callback) {
+    beforeEach(() => {
         /* eslint-disable global-require */
         azureNetworkMock = require('azure-arm-network');
         httpMock = require('http');
@@ -84,31 +85,27 @@ module.exports = {
 
         argv = ['node', 'failover', '--log-level', 'none', '--tag-value', 'service1', '--dissociate-intf',
             dissociateIntf, '--associate-intf', associateIntf, '--password-data', 'file:///.bigiq_pass'];
+    });
 
-        callback();
-    },
-
-    tearDown(callback) {
+    afterEach(() => {
         Object.keys(require.cache).forEach((key) => {
             delete require.cache[key];
         });
-        callback();
-    },
+    });
 
-    testArgs: {
-        testBigIpInit(test) {
+    describe('args tests', () => {
+        it('bigip init test', (done) => {
             failover.run(argv, testOptions, () => {
-                test.expect(3);
-                test.strictEqual(functionsCalled.bigIp.init[1], 'admin');
-                test.strictEqual(functionsCalled.bigIp.init[2], 'file:///.bigiq_pass');
-                test.deepEqual(functionsCalled.bigIp.init[3], { port: '443' });
-                test.done();
+                assert.strictEqual(functionsCalled.bigIp.init[1], 'admin');
+                assert.strictEqual(functionsCalled.bigIp.init[2], 'file:///.bigiq_pass');
+                assert.deepEqual(functionsCalled.bigIp.init[3], { port: '443' });
+                done();
             });
-        }
-    },
+        });
+    });
 
-    testgetFailoverStatus: {
-        setUp(callback) {
+    describe('get failover status tests', () => {
+        beforeEach(() => {
             logger = LoggerMock.getLogger();
             logger.info = (message) => {
                 loggedMessages.push(message);
@@ -118,23 +115,20 @@ module.exports = {
 
             argv = ['node', 'failover', '--log-level', 'info', '--tag-value', 'service1', '--dissociate-intf',
                 dissociateIntf, '--associate-intf', associateIntf, '--password-data', 'file:///.bigiq_pass'];
+        });
 
-            callback();
-        },
-
-        testIsSecondary(test) {
+        it('is secondary test', (done) => {
             bigIpMock.list = function list() {
                 return q({ nodeRole: 'SECONDARY' });
             };
             failover.run(argv, testOptions, () => {
-                test.expect(2);
-                test.notStrictEqual(loggedMessages.pop().indexOf('SECONDARY'), -1);
-                test.strictEqual(loggedMessages.pop().indexOf('PRIMARY'), -1);
-                test.done();
+                assert.notStrictEqual(loggedMessages.pop().indexOf('SECONDARY'), -1);
+                assert.strictEqual(loggedMessages.pop().indexOf('PRIMARY'), -1);
+                done();
             });
-        },
+        });
 
-        testIsPrimary(test) {
+        it('is primary test', (done) => {
             bigIpMock.list = function list() {
                 return q({ nodeRole: 'PRIMARY' });
             };
@@ -143,16 +137,15 @@ module.exports = {
                 messageString = `${messageString}-${message}`;
             };
             failover.run(argv, testOptions, () => {
-                test.expect(2);
-                test.notStrictEqual(messageString.indexOf('PRIMARY'), -1);
-                test.strictEqual(messageString.indexOf('SECONDARY'), -1);
-                test.done();
+                assert.notStrictEqual(messageString.indexOf('PRIMARY'), -1);
+                assert.strictEqual(messageString.indexOf('SECONDARY'), -1);
+                done();
             });
-        }
-    },
+        });
+    });
 
-    testAzure: {
-        setUp(callback) {
+    describe('azure tests', () => {
+        beforeEach(() => {
             bigIpMock.list = function list() {
                 return q({ nodeRole: 'PRIMARY' });
             };
@@ -295,52 +288,46 @@ module.exports = {
             };
 
             testOptions.networkClient = azureNetworkMock;
+        });
 
-            callback();
-        },
-
-        testGetVmInformationAndConfigureAzure(test) {
+        it('get vm information and configure azure test', (done) => {
             azureNetworkMock.publicIPAddresses.list = function list(resourceGroup, cb) {
                 cb(new Error('not implemented'), 'error');
             };
 
             failover.run(argv, testOptions, () => {
-                test.expect(3);
                 // test getInstanceVMInformation
-                test.deepEqual(functionsCalled.http.get.headers, { Metadata: 'True' });
-                test.notStrictEqual(functionsCalled.http.get.path.indexOf('/metadata/instance'), -1);
+                assert.deepEqual(functionsCalled.http.get.headers, { Metadata: 'True' });
+                assert.notStrictEqual(functionsCalled.http.get.path.indexOf('/metadata/instance'), -1);
                 // Test configureAzure
-                test.strictEqual(failover.subscriptionId, ourSubscription);
-                test.done();
+                assert.strictEqual(failover.subscriptionId, ourSubscription);
+                done();
             });
-        },
+        });
 
-        testGetVirtualIPAddressAlreadyAssigned(test) {
+        it('get virtual ip address already assigned test', (done) => {
             failover.run(argv, testOptions, () => {
-                test.expect(2);
-                test.strictEqual(failover.associateRequired, false);
-                test.deepEqual(functionsCalled.azure.publicIPAddresses.list, ['my-rg']);
-                test.done();
+                assert.strictEqual(failover.associateRequired, false);
+                assert.deepEqual(functionsCalled.azure.publicIPAddresses.list, ['my-rg']);
+                done();
             });
-        },
+        });
 
-        testConstructNicParameters(test) {
+        it('construct nic parameters test', (done) => {
             instanceMetadata.network.interface[1].ipv4.ipAddress[0].publicIpAddress = '77.88.99.00';
             failover.run(argv, testOptions, () => {
-                test.expect(2);
-                test.strictEqual(failover.associateRequired, true);
-                test.deepEqual(functionsCalled.azure.networkInterfaces.get, [dissociateIntf, associateIntf]);
-                test.done();
+                assert.strictEqual(failover.associateRequired, true);
+                assert.deepEqual(functionsCalled.azure.networkInterfaces.get, [dissociateIntf, associateIntf]);
+                done();
             });
-        },
+        });
 
-        testMoveVirtualAddress(test) {
+        it('move virtual address test', (done) => {
             functionsCalled.azure.networkInterfaces.createOrUpdate = [];
             instanceMetadata.network.interface[1].ipv4.ipAddress[0].publicIpAddress = '77.88.99.00';
             failover.run(argv, testOptions, () => {
-                test.expect(3);
-                test.strictEqual(failover.associateRequired, true);
-                test.deepEqual(
+                assert.strictEqual(failover.associateRequired, true);
+                assert.deepEqual(
                     functionsCalled.azure.networkInterfaces.createOrUpdate[dissociateIntf].ipConfigurations,
                     [
                         {
@@ -352,7 +339,7 @@ module.exports = {
                         }
                     ]
                 );
-                test.deepEqual(
+                assert.deepEqual(
                     functionsCalled.azure.networkInterfaces.createOrUpdate[associateIntf].ipConfigurations,
                     [
                         {
@@ -365,8 +352,8 @@ module.exports = {
                         }
                     ]
                 );
-                test.done();
+                done();
             });
-        }
-    }
-};
+        });
+    });
+});
