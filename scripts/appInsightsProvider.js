@@ -17,6 +17,7 @@ const q = require('q');
 const appInsights = require('applicationinsights');
 const Logger = require('@f5devcentral/f5-cloud-libs').logger;
 const BigIp = require('@f5devcentral/f5-cloud-libs').bigIp;
+const util = require('@f5devcentral/f5-cloud-libs').util;
 
 /**
  * Grab command line arguments
@@ -34,6 +35,50 @@ const loggerOptions = { logLevel: options.logLevel, fileName: options.logFile, c
 const logger = Logger.getLogger(loggerOptions);
 this.logger = logger;
 const bigip = new BigIp({ logger: this.logger });
+
+
+/**
+ * Get the count of running appInsightsProvider process, and its pid.
+ */
+function getAppInsightsProviderProcessInfo() {
+    const grepCommand = 'grep appInsightsProvider.js | grep -v \'grep appInsightsProvider.js\'';
+    const results = {};
+
+
+    return util.getProcessCount(grepCommand)
+        .then((response) => {
+            if (response) {
+                results.processCount = response;
+            }
+            return util.getProcessExecutionTimeWithPid(grepCommand);
+        })
+        .then((response) => {
+            if (response) {
+                results.pid = response.split('-')[0];
+                results.executionTime = response.split('-')[1].split(':')[0];
+                logger.silly(`Longer running appInsightsProvider process id: ${results.pid}`);
+            }
+            return q(results);
+        })
+        .catch((err) => {
+            logger.error('Could not determine if another appInsightsProvider script is running');
+            return q.reject(err);
+        });
+}
+
+getAppInsightsProviderProcessInfo()
+    .then((results) => {
+        // Stop processing if there is an other running AppInsightsProvider process
+        if (results && results.processCount && results.processCount > 1) {
+            logger.silly(`Running process count: ${results.processCount}`);
+            logger.silly(`Execution time in mins: ${parseInt(results.executionTime, 10)}`);
+            logger.info('Terminating the appInsightsProvider script execution.');
+            util.terminateProcessById(results.pid);
+            util.logAndExit('Another appInsightsProvider process already running.');
+            return q.reject('Another appInsightsProvider process already running.');
+        }
+        return q();
+    });
 
 
 /**
