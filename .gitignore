@@ -8,6 +8,9 @@ ehthumbs.db
 # Folder config file
 Desktop.ini
 
+# Testing log file
+test.log
+
 # Recycle Bin used on file shares
 $RECYCLE.BIN/
 

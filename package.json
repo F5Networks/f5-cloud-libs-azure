@@ -1,6 +1,6 @@
 {
   "name": "@f5devcentral/f5-cloud-libs-azure",
-  "version": "2.15.0",
+  "version": "2.16.0",
   "description": "Azure implementation of f5-cloud-libs cloud provider code",
   "keywords": [
     "f5",
@@ -25,6 +25,7 @@
     "azure-arm-network": "5.1.0",
     "azure-arm-resource": "^7.2.0",
     "azure-storage": "^2.8.1",
+    "chai": "^4.2.0",
     "commander": "^2.9.0",
     "ms-rest-azure": "^2.6.0",
     "q": "^1.4.1",
@@ -33,16 +34,32 @@
   "peerDependencies": {
     "@f5devcentral/f5-cloud-libs": "beta"
   },
+  "auditProcessor": {
+    "whitelist": [
+      "1523"
+    ]
+  },
+  "eslintConfig": {
+    "plugins": [
+      "mocha"
+    ],
+    "env": {
+      "mocha": true,
+      "node": true
+    }
+  },
   "devDependencies": {
     "eslint": "^4.16.0",
     "eslint-config-airbnb-base": "^12.1.0",
-    "eslint-plugin-import": "^2.14.0",
-    "nodeunit": "^0.11"
+    "eslint-plugin-import": "^2.11.0",
+    "eslint-plugin-mocha": "^8.0.0",
+    "mocha": "^7.1.1"
   },
   "scripts": {
+    "audit": "npm audit --json > .auditReport.json; node scripts/auditProcessor.js",
     "lint": "node node_modules/eslint/bin/eslint lib scripts",
     "package": "bash ./package.sh",
-    "test": "node node_modules/nodeunit/bin/nodeunit --reporter eclipse test test/lib test/scripts",
+    "test": "mocha --exit test test/lib test/scripts",
     "version": "bash ./setVersion.sh $npm_package_version && git add ."
   }
 }
