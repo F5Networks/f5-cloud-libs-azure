@@ -1,6 +1,6 @@
 {
   "name": "@f5devcentral/f5-cloud-libs-azure",
-  "version": "2.16.0",
+  "version": "2.17.0-beta.1",
   "description": "Azure implementation of f5-cloud-libs cloud provider code",
   "keywords": [
     "f5",
@@ -49,9 +49,9 @@
     }
   },
   "devDependencies": {
-    "eslint": "^4.16.0",
+    "eslint": "^4.19.1",
     "eslint-config-airbnb-base": "^12.1.0",
-    "eslint-plugin-import": "^2.11.0",
+    "eslint-plugin-import": "^2.14.0",
     "eslint-plugin-mocha": "^8.0.0",
     "mocha": "^7.1.1"
   },
