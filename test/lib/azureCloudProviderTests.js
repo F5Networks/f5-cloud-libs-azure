@@ -23,7 +23,7 @@ require('module').Module._initPaths(); // eslint-disable-line no-underscore-dang
 
 const q = require('q');
 
-describe('onboard tests', () => {
+describe('azureCloudProvider', () => {
     const clientId = 'myClientId';
     const secret = 'mySecret';
     const tenantId = 'myTenantId';
@@ -54,6 +54,7 @@ describe('onboard tests', () => {
     let receivedSecret;
     let receivedTenantId;
     let receivedAzureEnvironment;
+    let loginWithManagedIdentityCalled;
 
     let azureLocation;
     let deleteBlobIfExistsCalled = false;
@@ -139,25 +140,41 @@ describe('onboard tests', () => {
                 receivedAzureEnvironment = options.environment;
                 cb(null, { signRequest() { } });
             };
+
+            loginWithManagedIdentityCalled = false;
+            azureMock.MSIVmTokenCredentials = function MSIVmTokenCredentials() {
+                loginWithManagedIdentityCalled = true;
+            };
         });
 
-        it('azure login test', (done) => {
+        it('azure credentials login test', () => {
             const providerOptions = {
                 scaleSet: 'myScaleSet',
                 resourceGroup: 'myResourceGroup',
                 azCredentialsUrl: 'file:///foo/bar'
             };
 
-            provider.init(providerOptions)
+            return provider.init(providerOptions)
                 .then(() => {
                     assert.strictEqual(receivedClientId, clientId);
                     assert.strictEqual(receivedSecret, secret);
                     assert.strictEqual(receivedTenantId, tenantId);
-                    done();
                 });
         });
 
-        it('azure gov test', (done) => {
+        it('azure managed identity login test', () => {
+            const providerOptions = {
+                resourceGroup: 'myResourceGroup',
+                useManagedIdentity: true
+            };
+
+            return provider.init(providerOptions)
+                .then(() => {
+                    assert.strictEqual(loginWithManagedIdentityCalled, true);
+                });
+        });
+
+        it('azure gov test', () => {
             azureLocation = 'USGovArizona';
 
             const providerOptions = {
@@ -166,17 +183,16 @@ describe('onboard tests', () => {
                 azCredentialsUrl: 'file:///foo/bar'
             };
 
-            provider.init(providerOptions)
+            return provider.init(providerOptions)
                 .then(() => {
                     assert.strictEqual(receivedClientId, clientId);
                     assert.strictEqual(receivedSecret, secret);
                     assert.strictEqual(receivedTenantId, tenantId);
                     assert.strictEqual(receivedAzureEnvironment.name, 'AzureUSGovernment');
-                    done();
                 });
         });
 
-        it('provider options azure gov login test', (done) => {
+        it('provider options azure gov login test', () => {
             const providerOptions = {
                 scaleSet: 'myScaleSet',
                 resourceGroup: 'myResourceGroup',
@@ -184,17 +200,16 @@ describe('onboard tests', () => {
                 environment: 'AzureUSGovernment'
             };
 
-            provider.init(providerOptions)
+            return provider.init(providerOptions)
                 .then(() => {
                     assert.strictEqual(receivedClientId, clientId);
                     assert.strictEqual(receivedSecret, secret);
                     assert.strictEqual(receivedTenantId, tenantId);
                     assert.strictEqual(receivedAzureEnvironment.name, 'AzureUSGovernment');
-                    done();
                 });
         });
 
-        it('azure login encrypted test', (done) => {
+        it('azure login encrypted test', () => {
             const providerOptions = {
                 scaleSet: 'myScaleSet',
                 resourceGroup: 'myResourceGroup',
@@ -202,34 +217,30 @@ describe('onboard tests', () => {
                 azCredentialsEncrypted: true
             };
 
-            provider.init(providerOptions)
+            return provider.init(providerOptions)
                 .then(() => {
                     assert.strictEqual(receivedClientId, clientId);
                     assert.strictEqual(receivedSecret, secret);
                     assert.strictEqual(receivedTenantId, tenantId);
-                    done();
                 });
         });
 
-        it('azure login bad credentials url test', (done) => {
+        it('azure login bad credentials url test', () => {
             const errorMessage = 'bad url';
             utilMock.getDataFromUrl = function getDataFromUrl() {
                 return q.reject(new Error(errorMessage));
             };
 
-            provider.init({ azCredentialsUrl: 'file:///foo/bar' })
+            return provider.init({ azCredentialsUrl: 'file:///foo/bar' })
                 .then(() => {
                     assert.ok(false, 'Should have thrown bad url');
                 })
                 .catch((err) => {
                     assert.strictEqual(err.message, errorMessage);
-                })
-                .finally(() => {
-                    done();
                 });
         });
     });
-    
+
     describe('get instance id tests', () => {
         beforeEach(() => {
             utilMock.getDataFromUrl = function getDataFromUrl() {
@@ -288,34 +299,22 @@ describe('onboard tests', () => {
             provider.resourceGroup = 'my resource group';
         });
 
-        it('basic test', (done) => {
-            provider.getInstanceId()
+        it('basic test', () => {
+            return provider.getInstanceId()
                 .then((instanceId) => {
                     assert.strictEqual(instanceId, '456');
-                })
-                .catch((err) => {
-                    assert.ok(false, err);
-                })
-                .finally(() => {
-                    done();
                 });
         });
 
-        it('cached test', (done) => {
+        it('cached test', () => {
             provider.instanceId = '789';
-            provider.getInstanceId()
+            return provider.getInstanceId()
                 .then((instanceId) => {
                     assert.strictEqual(instanceId, '789');
-                })
-                .catch((err) => {
-                    assert.ok(false, err);
-                })
-                .finally(() => {
-                    done();
                 });
         });
 
-        it('static test', (done) => {
+        it('static test', () => {
             utilMock.getDataFromUrl = function getDataFromUrl() {
                 return q({
                     compute: {
@@ -327,19 +326,13 @@ describe('onboard tests', () => {
 
             provider.clOptions.static = true;
 
-            provider.getInstanceId()
+            return provider.getInstanceId()
                 .then((instanceId) => {
                     assert.strictEqual(instanceId, '888');
-                })
-                .catch((err) => {
-                    assert.ok(false, err);
-                })
-                .finally(() => {
-                    done();
                 });
         });
 
-        it('out name not found test', (done) => {
+        it('out name not found test', () => {
             utilMock.getDataFromUrl = function getDataFromUrl() {
                 return q({
                     compute: {
@@ -348,32 +341,26 @@ describe('onboard tests', () => {
                 });
             };
 
-            provider.getInstanceId()
+            return provider.getInstanceId()
                 .then(() => {
                     assert.ok(false, 'should have thrown id not found');
                 })
                 .catch((err) => {
                     assert.notStrictEqual(err.message.indexOf('Unable to determine'), -1);
-                })
-                .finally(() => {
-                    done();
                 });
         });
 
-        it('bad metadata test', (done) => {
+        it('bad metadata test', () => {
             utilMock.getDataFromUrl = function getDataFromUrl() {
                 return q({});
             };
 
-            provider.getInstanceId()
+            return provider.getInstanceId()
                 .then(() => {
                     assert.ok(false, 'should have thrown id not found');
                 })
                 .catch((err) => {
                     assert.notStrictEqual(err.message.indexOf('not found in metadata'), -1);
-                })
-                .finally(() => {
-                    done();
                 });
         });
     });
@@ -381,7 +368,7 @@ describe('onboard tests', () => {
     describe('delete stored ucs tests', () => {
         beforeEach(() => {
             provider.storageClient = {
-                deleteBlobIfExists: function(c,n, cb) {
+                deleteBlobIfExists(c, n, cb) {
                     deleteBlobIfExistsCalled = true;
                     cb(null, 'Success');
                 },
@@ -389,18 +376,14 @@ describe('onboard tests', () => {
             };
         });
 
-        it('exists test', (done) => {
-            provider.deleteStoredUcs('foo.ucs')
+        it('exists test', () => {
+            return provider.deleteStoredUcs('foo.ucs')
                 .then(() => {
                     assert.ok(true);
                     assert.ok(deleteBlobIfExistsCalled);
                 })
-                .catch((err) => {
-                    assert.ok(false, err.message);
-                })
                 .finally(() => {
                     deleteBlobIfExistsCalled = false;
-                    done();
                 });
         });
     });
@@ -509,8 +492,8 @@ describe('onboard tests', () => {
             provider.resourceGroup = 'my resource group';
         });
 
-        it('basic test', (done) => {
-            provider.getInstances()
+        it('basic test', () => {
+            return provider.getInstances()
                 .then((instances) => {
                     assert.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
                     assert.strictEqual(instances['123'].privateIp, '5.6.7.8');
@@ -532,16 +515,10 @@ describe('onboard tests', () => {
                     assert.strictEqual(instances['456'].external, false);
                     assert.strictEqual(instances['456'].lastBackup, new Date(1970, 1, 1).getTime());
                     assert.strictEqual(instances['456'].versionOk, true);
-                })
-                .catch((err) => {
-                    assert.ok(false, err);
-                })
-                .finally(() => {
-                    done();
                 });
         });
 
-        it('instances in db test', (done) => {
+        it('instances in db test', () => {
             azureStorageMock.listBlobsSegmented = function listBlobsSegmented(container, token, options, cb) {
                 cb(null,
                     {
@@ -587,7 +564,7 @@ describe('onboard tests', () => {
                 cb(null, JSON.stringify(instance));
             };
 
-            provider.getInstances()
+            return provider.getInstances()
                 .then((instances) => {
                     assert.deepEqual(instances, {
                         123: {
@@ -608,16 +585,10 @@ describe('onboard tests', () => {
                             primaryStatus: {}
                         }
                     });
-                })
-                .catch((err) => {
-                    assert.ok(false, err);
-                })
-                .finally(() => {
-                    done();
                 });
         });
 
-        it('Not Provider Visible Provisioning State test', (done) => {
+        it('Not Provider Visible Provisioning State test', () => {
             azureComputeMock.virtualMachineScaleSetVMs = {
                 list(resourceGroup, scaleSetName, options, cb) {
                     cb(
@@ -661,7 +632,7 @@ describe('onboard tests', () => {
                 }
             };
 
-            provider.getInstances()
+            return provider.getInstances()
                 .then((instances) => {
                     assert.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
                     assert.strictEqual(instances['123'].privateIp, '5.6.7.8');
@@ -681,16 +652,10 @@ describe('onboard tests', () => {
                     assert.strictEqual(instances['456'].isPrimary, false);
                     assert.strictEqual(instances['456'].external, false);
                     assert.strictEqual(instances['456'].versionOk, true);
-                })
-                .catch((err) => {
-                    assert.ok(false, err);
-                })
-                .finally(() => {
-                    done();
                 });
         });
 
-        it('Not Provider Visible Power State test', (done) => {
+        it('Not Provider Visible Power State test', () => {
             azureComputeMock.virtualMachineScaleSetVMs = {
                 list(resourceGroup, scaleSetName, options, cb) {
                     cb(
@@ -733,7 +698,7 @@ describe('onboard tests', () => {
                 }
             };
 
-            provider.getInstances()
+            return provider.getInstances()
                 .then((instances) => {
                     assert.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
                     assert.strictEqual(instances['123'].privateIp, '5.6.7.8');
@@ -753,16 +718,10 @@ describe('onboard tests', () => {
                     assert.strictEqual(instances['456'].isPrimary, false);
                     assert.strictEqual(instances['456'].external, false);
                     assert.strictEqual(instances['456'].versionOk, true);
-                })
-                .catch((err) => {
-                    assert.ok(false, err);
-                })
-                .finally(() => {
-                    done();
                 });
         });
 
-        it('Not Provider Visible Power State Function Error test', (done) => {
+        it('Not Provider Visible Power State Function Error test', () => {
             azureComputeMock.virtualMachineScaleSetVMs = {
                 list(resourceGroup, scaleSetName, options, cb) {
                     cb(
@@ -805,7 +764,7 @@ describe('onboard tests', () => {
                 }
             };
 
-            provider.getInstances()
+            return provider.getInstances()
                 .then((instances) => {
                     assert.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
                     assert.strictEqual(instances['123'].privateIp, '5.6.7.8');
@@ -825,16 +784,10 @@ describe('onboard tests', () => {
                     assert.strictEqual(instances['456'].isPrimary, false);
                     assert.strictEqual(instances['456'].external, false);
                     assert.strictEqual(instances['456'].versionOk, true);
-                })
-                .catch((err) => {
-                    assert.ok(false, err);
-                })
-                .finally(() => {
-                    done();
                 });
         });
 
-        it('External tag test', (done) => {
+        it('External tag test', () => {
             const externalTag = {
                 key: 'foo',
                 value: 'bar'
@@ -892,7 +845,7 @@ describe('onboard tests', () => {
                 );
             };
 
-            provider.getInstances({ externalTag })
+            return provider.getInstances({ externalTag })
                 .then((instances) => {
                     assert.strictEqual(instances['123'].mgmtIp, '5.6.7.8');
                     assert.strictEqual(instances['123'].privateIp, '5.6.7.8');
@@ -912,30 +865,21 @@ describe('onboard tests', () => {
                     assert.strictEqual(instances['456'].isPrimary, false);
                     assert.strictEqual(instances['456'].external, false);
                     assert.strictEqual(instances['456'].versionOk, true);
-                })
-                .catch((err) => {
-                    assert.ok(false, err);
-                })
-                .finally(() => {
-                    done();
                 });
         });
 
-        it('error test', (done) => {
+        it('error test', () => {
             const errorMessage = 'some error occurred';
             bigIpMock.prototype.init = function init() {
                 return q.reject(new Error(errorMessage));
             };
 
-            provider.getInstances()
+            return provider.getInstances()
                 .then(() => {
                     assert.ok(false, 'should have thrown');
                 })
                 .catch((err) => {
                     assert.strictEqual(err.message, errorMessage);
-                })
-                .finally(() => {
-                    done();
                 });
         });
     });
@@ -946,6 +890,7 @@ describe('onboard tests', () => {
                 listVirtualMachineScaleSetNetworkInterfaces(resourceGroup, scaleSet, cb) {
                     cb(null, [
                         {
+                            // eslint-disable-next-line max-len
                             id: '/subscriptions/mySubId/resourceGroups/myResourceGroup/providers/Microsoft.Compute/virtualMachineScaleSets/myScaleSetName/virtualMachines/3/networkInterfaces/nic1',
                             virtualMachine: {
                                 id: 'instance/123'
@@ -978,36 +923,27 @@ describe('onboard tests', () => {
             provider.resourceGroup = 'my resource group';
         });
 
-        it('basic test', (done) => {
-            provider.getNodesByResourceId('resourceId', 'scaleSet')
+        it('basic test', () => {
+            return provider.getNodesByResourceId('resourceId', 'scaleSet')
                 .then((instances) => {
                     assert.strictEqual(instances.length, 1);
                     assert.strictEqual(instances[0].ip.private, '5.6.7.8');
-                })
-                .catch((err) => {
-                    assert.ok(false, err);
-                })
-                .finally(() => {
-                    done();
                 });
         });
 
-        it('bad resource type test', (done) => {
-            provider.getNodesByResourceId('resourceId', 'resourceType')
+        it('bad resource type test', () => {
+            return provider.getNodesByResourceId('resourceId', 'resourceType')
                 .then(() => {
                     assert.ok(false, 'should have thrown');
                 })
                 .catch((err) => {
                     assert.notStrictEqual(err.message.indexOf('supported'), -1);
-                })
-                .finally(() => {
-                    done();
                 });
         });
     });
 
     describe('elect primary tests', () => {
-        it('basic test', (done) => {
+        it('basic test', () => {
             const instances = {
                 123: {
                     mgmtIp: '5.6.7.8',
@@ -1025,14 +961,13 @@ describe('onboard tests', () => {
                 }
             };
 
-            provider.electPrimary(instances)
+            return provider.electPrimary(instances)
                 .then((electedId) => {
                     assert.strictEqual(electedId, '123');
-                    done();
                 });
         });
 
-        it('lowest not provider visible test', (done) => {
+        it('lowest not provider visible test', () => {
             const instances = {
                 123: {
                     mgmtIp: '5.6.7.8',
@@ -1050,14 +985,13 @@ describe('onboard tests', () => {
                 }
             };
 
-            provider.electPrimary(instances)
+            return provider.electPrimary(instances)
                 .then((electedId) => {
                     assert.strictEqual(electedId, '456');
-                    done();
                 });
         });
 
-        it('no provider visible test', (done) => {
+        it('no provider visible test', () => {
             const instances = {
                 123: {
                     mgmtIp: '5.6.7.8',
@@ -1075,19 +1009,16 @@ describe('onboard tests', () => {
                 }
             };
 
-            provider.electPrimary(instances)
+            return provider.electPrimary(instances)
                 .then(() => {
                     assert.ok(false, 'should have thrown no instances');
                 })
                 .catch((err) => {
                     assert.strictEqual(err.message, 'No possible primary found');
-                })
-                .finally(() => {
-                    done();
                 });
         });
 
-        it('lowest not version test', (done) => {
+        it('lowest not version test', () => {
             const instances = {
                 123: {
                     mgmtIp: '5.6.7.8',
@@ -1105,14 +1036,13 @@ describe('onboard tests', () => {
                 }
             };
 
-            provider.electPrimary(instances)
+            return provider.electPrimary(instances)
                 .then((electedId) => {
                     assert.strictEqual(electedId, '456');
-                    done();
                 });
         });
 
-        it('external instances test', (done) => {
+        it('external instances test', () => {
             const instances = {
                 123: {
                     mgmtIp: '5.6.7.8',
@@ -1146,30 +1076,26 @@ describe('onboard tests', () => {
                 }
             };
 
-            provider.electPrimary(instances)
+            return provider.electPrimary(instances)
                 .then((electedId) => {
                     assert.strictEqual(electedId, '999');
-                    done();
                 });
         });
 
-        it('no instances test', (done) => {
+        it('no instances test', () => {
             const instances = [];
 
-            provider.electPrimary(instances)
+            return provider.electPrimary(instances)
                 .then(() => {
                     assert.ok(false, 'should have thrown no instances');
                 })
                 .catch((err) => {
                     assert.strictEqual(err.message, 'No instances');
-                })
-                .finally(() => {
-                    done();
                 });
         });
     });
 
-    it('get primary credentials test', (done) => {
+    it('get primary credentials test', () => {
         const user = 'roger';
         const password = 'dodger';
 
@@ -1178,13 +1104,12 @@ describe('onboard tests', () => {
         bigIpMock.password = password;
         provider.bigIp = bigIpMock;
 
-        provider.getPrimaryCredentials()
+        return provider.getPrimaryCredentials()
             .then((credentials) => {
                 assert.deepEqual(credentials, {
                     password,
                     username: user
                 });
-                done();
             });
     }).timeout(5000);
 
@@ -1212,7 +1137,7 @@ describe('onboard tests', () => {
             };
         });
 
-        it('valid test', (done) => {
+        it('valid test', () => {
             const instanceId = '123';
             const instances = {
                 123: {
@@ -1221,19 +1146,13 @@ describe('onboard tests', () => {
                 }
             };
 
-            provider.isValidPrimary(instanceId, instances)
+            return provider.isValidPrimary(instanceId, instances)
                 .then((isValid) => {
                     assert.strictEqual(isValid, true);
-                })
-                .catch((err) => {
-                    assert.ok(false, err);
-                })
-                .finally(() => {
-                    done();
                 });
         });
 
-        it('not valid test', (done) => {
+        it('not valid test', () => {
             const instanceId = '123';
             const instances = {
                 123: {
@@ -1242,15 +1161,9 @@ describe('onboard tests', () => {
                 }
             };
 
-            provider.isValidPrimary(instanceId, instances)
+            return provider.isValidPrimary(instanceId, instances)
                 .then((isValid) => {
                     assert.strictEqual(isValid, false);
-                })
-                .catch((err) => {
-                    assert.ok(false, err);
-                })
-                .finally(() => {
-                    done();
                 });
         });
     });
@@ -1285,7 +1198,7 @@ describe('onboard tests', () => {
             provider.resourceGroup = 'resourceGroupName';
         });
 
-        it('tag primary instance test', (done) => {
+        it('tag primary instance test', () => {
             const primaryIid = '456';
             const instances = {
                 123: {
@@ -1304,7 +1217,7 @@ describe('onboard tests', () => {
                 }
             };
 
-            provider.tagPrimaryInstance(primaryIid, instances)
+            return provider.tagPrimaryInstance(primaryIid, instances)
                 .then(() => {
                     assert.strictEqual(
                         virtualMachineScaleSetUpdateParams.params.tags['resourceGroupName-primary'],
@@ -1312,12 +1225,6 @@ describe('onboard tests', () => {
                     );
                     assert.strictEqual(virtualMachineScaleSetUpdateParams.params.tags.application, 'APP');
                     assert.strictEqual(virtualMachineScaleSetUpdateParams.resourceGroup, 'resourceGroupName');
-                })
-                .catch((err) => {
-                    assert.ok(false, err);
-                })
-                .finally(() => {
-                    done();
                 });
         });
     });
@@ -1337,7 +1244,7 @@ describe('onboard tests', () => {
             };
         });
 
-        it('basic test', (done) => {
+        it('basic test', () => {
             ucsEntries = [
                 {
                     name: 'my.ucs',
@@ -1345,14 +1252,13 @@ describe('onboard tests', () => {
                 }
             ];
 
-            provider.getStoredUcs()
+            return provider.getStoredUcs()
                 .then((ucsData) => {
                     assert.strictEqual(ucsData.name, 'my.ucs');
-                    done();
                 });
         });
 
-        it('gets latest test', (done) => {
+        it('gets latest test', () => {
             ucsEntries = [
                 {
                     name: 'old.ucs',
@@ -1364,41 +1270,36 @@ describe('onboard tests', () => {
                 }
             ];
 
-            provider.getStoredUcs()
+            return provider.getStoredUcs()
                 .then((ucsData) => {
                     assert.strictEqual(ucsData.name, 'new.ucs');
-                    done();
                 });
         });
 
-        it('no ucs files test', (done) => {
+        it('no ucs files test', () => {
             ucsEntries = [];
-            provider.getStoredUcs()
+            return provider.getStoredUcs()
                 .then((ucsData) => {
                     assert.strictEqual(ucsData, undefined);
-                    done();
                 });
         });
 
-        it('List Blobs Segmented Error test', (done) => {
+        it('List Blobs Segmented Error test', () => {
             const errorMessage = 'foobar';
             provider.storageClient.listBlobsSegmented = function listBlobsSegmented(container, foo, bar, cb) {
                 cb(new Error(errorMessage));
             };
 
-            provider.getStoredUcs()
+            return provider.getStoredUcs()
                 .then(() => {
                     assert.ok(false, 'listBlobsSegmented should have thrown');
                 })
                 .catch((err) => {
                     assert.strictEqual(err.message, errorMessage);
-                })
-                .finally(() => {
-                    done();
                 });
         });
     });
-    
+
     describe('put instance tests', () => {
         beforeEach(() => {
             azureStorageMock.createBlockBlobFromText = function createBlockBlobFromText(
@@ -1419,24 +1320,18 @@ describe('onboard tests', () => {
             provider.storageClient = azureStorageMock;
         });
 
-        it('basic test', (done) => {
+        it('basic test', () => {
             const instanceId = '123';
             const instance = {
                 foo: 'bar'
             };
 
-            provider.putInstance(instanceId, instance)
+            return provider.putInstance(instanceId, instance)
                 .then(() => {
                     const putData = JSON.parse(createBlobFromTextParams.data);
                     assert.strictEqual(createBlobFromTextParams.name, instanceId);
                     assert.strictEqual(putData.foo, instance.foo);
                     assert.notStrictEqual(putData.lastUpdate, undefined);
-                })
-                .catch((err) => {
-                    assert.ok(false, err);
-                })
-                .finally(() => {
-                    done();
                 });
         });
     });
@@ -1456,59 +1351,41 @@ describe('onboard tests', () => {
             getBlobToTextParams = undefined;
         });
 
-        it('basic test', (done) => {
-            provider.getDataFromUri('https://account.blob.core.windows.net/myStuff/myFile')
+        it('basic test', () => {
+            return provider.getDataFromUri('https://account.blob.core.windows.net/myStuff/myFile')
                 .then((data) => {
                     assert.strictEqual(getBlobToTextParams.container, 'myStuff');
                     assert.strictEqual(getBlobToTextParams.blob, 'myFile');
                     assert.strictEqual(data, 'AzureBlobData');
-                })
-                .catch((err) => {
-                    assert.ok(false, err);
-                })
-                .finally(() => {
-                    done();
                 });
         });
 
-        it('complex key test', (done) => {
-            provider.getDataFromUri('https://account.blob.core.windows.net/myStuff/myFolder/myFile')
+        it('complex key test', () => {
+            return provider.getDataFromUri('https://account.blob.core.windows.net/myStuff/myFolder/myFile')
                 .then((data) => {
                     assert.strictEqual(getBlobToTextParams.container, 'myStuff');
                     assert.strictEqual(getBlobToTextParams.blob, 'myFolder/myFile');
                     assert.strictEqual(data, 'AzureBlobData');
-                })
-                .catch((err) => {
-                    assert.ok(false, err);
-                })
-                .finally(() => {
-                    done();
                 });
         });
 
-        it('invalid uri test', (done) => {
-            provider.getDataFromUri('myStuff/myFolder/myFile')
+        it('invalid uri test', () => {
+            return provider.getDataFromUri('myStuff/myFolder/myFile')
                 .then(() => {
                     assert.ok(false, 'Should have thrown invalid URI');
                 })
                 .catch((err) => {
                     assert.notStrictEqual(err.message.indexOf('Invalid URI'), -1);
-                })
-                .finally(() => {
-                    done();
                 });
         });
 
-        it('invalid blob path test', (done) => {
-            provider.getDataFromUri('https://account.blob.core.windows.net/myStuff')
+        it('invalid blob path test', () => {
+            return provider.getDataFromUri('https://account.blob.core.windows.net/myStuff')
                 .then(() => {
                     assert.ok(false, 'Should have thrown invalid URI');
                 })
                 .catch((err) => {
                     assert.notStrictEqual(err.message.indexOf('Invalid URI'), -1);
-                })
-                .finally(() => {
-                    done();
                 });
         });
     });
