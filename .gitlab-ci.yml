@@ -6,7 +6,6 @@ stages:
     - publish
     - notify
 
-
 test_node4:
     image: node:4
     tags:
@@ -16,8 +15,8 @@ test_node4:
         - triggers
     script:
         - npm install --global npm@5.10.0
+        - npm ci --registry ${NPM_REGISTRY}
         - npm install --registry ${NPM_REGISTRY} @f5devcentral/f5-cloud-libs@beta
-        - npm install --registry ${NPM_REGISTRY}
         - npm install mocha@5.2.0
         - npm install nyc@11.1.0
         - npm install yargs@11.1.1
@@ -32,8 +31,8 @@ test_node6:
     except:
         - triggers
     script:
-        - npm install --registry ${NPM_REGISTRY} @f5devcentral/f5-cloud-libs@beta
         - npm install --registry ${NPM_REGISTRY}
+        - npm install --registry ${NPM_REGISTRY} --no-save @f5devcentral/f5-cloud-libs@beta
         - npm install mocha@5.2.0
         - npm install nyc@14.0.0
         - npm run lint
@@ -47,8 +46,8 @@ test_node8:
     except:
         - triggers
     script:
-        - npm install --registry ${NPM_REGISTRY} @f5devcentral/f5-cloud-libs@beta
-        - npm install --registry ${NPM_REGISTRY}
+        - npm ci --registry ${NPM_REGISTRY}
+        - npm install --registry ${NPM_REGISTRY} --no-save @f5devcentral/f5-cloud-libs@beta
         - npm run lint
         - npm test
 
@@ -58,7 +57,7 @@ test_audit:
     stage: test
     script:
         # npm audit - uses custom audit processor wrapper
-        - npm install
+        - npm ci
         - npm run audit
     tags:
         - cm-official-docker-executor
