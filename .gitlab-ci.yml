@@ -1,4 +1,4 @@
-image: node:6
+image: $DOCKER_URL/node:6
 
 stages:
     - test
@@ -7,7 +7,7 @@ stages:
     - notify
 
 test_node4:
-    image: node:4
+    image: $DOCKER_URL/node:4
     tags:
         - docker-executor
     stage: test
@@ -24,7 +24,6 @@ test_node4:
         - npm test
 
 test_node6:
-    image: node:6
     tags:
         - docker-executor
     stage: test
@@ -39,7 +38,7 @@ test_node6:
         - npm test
 
 test_node8:
-    image: node:8
+    image: $DOCKER_URL/node:8
     tags:
         - docker-executor
     stage: test
@@ -53,12 +52,12 @@ test_node8:
 
 # audit packages for vulnerabilities
 test_audit:
-    image: node:8
+    image: $DOCKER_URL/node:8
     stage: test
     script:
         # npm audit - uses custom audit processor wrapper
         - npm ci
-        - npm run audit
+        - npm run audit --production
     tags:
         - cm-official-docker-executor
     except:
