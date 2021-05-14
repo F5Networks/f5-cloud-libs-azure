@@ -14,21 +14,18 @@
  * limitations under the License.
  */
 
-const q = require('q');
-const util = require('util');
-const assert = require('assert');
-const expect = require("chai").expect;
-const path_resolve = require('path').resolve;
-const child_process = require('child_process');
+'use strict';
+
+const expect = require('chai').expect;
+const childProcess = require('child_process');
 
 describe('AppInsightsProvider Process Count test', () => {
     it('Two Running AppInsightsProvider Processes test', (done) => {
-        child_process.exec('node ./scripts/appInsightsProvider.js --log-file ./test/scripts/test.log', 'utf8', (err, stdout, stderr) => {});
-        child_process.exec('node ./scripts/appInsightsProvider.js --log-file ./test/scripts/test.log', 'utf8', (err, stdout, stderr) => {
+        const scriptCommand = 'node ./scripts/appInsightsProvider.js --log-file ./test/scripts/test.log';
+        childProcess.exec(scriptCommand, 'utf8', () => {});
+        childProcess.exec(scriptCommand, 'utf8', (err, stdout) => {
             expect(stdout).to.contain('Another appInsightsProvider process already running.');
             done();
         });
     });
 });
-
-
