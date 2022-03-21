@@ -19,7 +19,10 @@
   "resolutions": {
     "underscore": "1.12.1",
     "lodash": "4.17.21",
-    "y18n": "4.0.3"
+    "y18n": "4.0.3",
+    "path-parse": "1.0.7",
+    "path-val": "1.11.0",
+    "glob-parent": "5.1.2"
   },
   "dependencies": {
     "applicationinsights": "^1.0.4",
@@ -38,7 +41,11 @@
     "@f5devcentral/f5-cloud-libs": "beta"
   },
   "auditProcessor": {
-    "whitelist": []
+    "whitelist": [
+      "1064686",
+      "1064768",
+      "1065347"
+    ]
   },
   "eslintConfig": {
     "plugins": [
