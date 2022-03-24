@@ -1,6 +1,6 @@
 {
   "name": "@f5devcentral/f5-cloud-libs-azure",
-  "version": "2.17.0",
+  "version": "2.17.1",
   "description": "Azure implementation of f5-cloud-libs cloud provider code",
   "keywords": [
     "f5",
@@ -19,7 +19,10 @@
   "resolutions": {
     "underscore": "1.12.1",
     "lodash": "4.17.21",
-    "y18n": "4.0.3"
+    "y18n": "4.0.3",
+    "path-parse": "1.0.7",
+    "path-val": "1.11.0",
+    "glob-parent": "5.1.2"
   },
   "dependencies": {
     "applicationinsights": "^1.0.4",
@@ -38,7 +41,11 @@
     "@f5devcentral/f5-cloud-libs": "beta"
   },
   "auditProcessor": {
-    "whitelist": []
+    "whitelist": [
+      "1064686",
+      "1064768",
+      "1065347"
+    ]
   },
   "eslintConfig": {
     "plugins": [
@@ -60,7 +67,7 @@
     "audit": "npm audit --json > .auditReport.json; node scripts/auditProcessor.js",
     "lint": "node node_modules/eslint/bin/eslint lib scripts",
     "package": "bash ./package.sh",
-    "preinstall": "npx npm-force-resolutions",
+    "preinstall": "if [ -f ./package-lock.json ]; then npx npm-force-resolutions; fi",
     "test": "mocha --exit test test/lib test/scripts",
     "version": "bash ./setVersion.sh $npm_package_version && git add ."
   }
